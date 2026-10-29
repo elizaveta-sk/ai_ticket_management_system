@@ -2,9 +2,24 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project status
+## Commands
 
-Planning stage: there is no application code yet, so there are no build, lint, or test commands. Update this file with commands and architecture once the project is scaffolded.
+Bun is the runtime and package manager (Bun workspaces: `client`, `server`). Run from the repo root:
+
+- `bun install`: install dependencies for all workspaces
+- `bun run db:up` / `bun run db:down`: start/stop PostgreSQL in Docker (`docker-compose.yml`)
+- `bun run dev`: run client (Vite, http://localhost:5173) and server (http://localhost:3000) together
+- `bun run build`: build the client
+- `bun --filter server typecheck`: typecheck the server
+- `bun --filter client lint`: lint the client (oxlint)
+
+The server reads `server/.env` (copy from `server/.env.example`).
+
+## Architecture
+
+- `client/`: React + TypeScript (Vite). The Vite dev server proxies `/api/*` to the Express server, so the client calls relative `/api` URLs.
+- `server/`: Express + TypeScript, run directly by Bun (no build step). `src/app.ts` defines the app and routes; `src/index.ts` starts the listener. Database access currently uses Bun's built-in `sql` client; Prisma is planned.
+- `implementation-plan.md` tracks progress as a phase-by-phase checklist.
 
 ## Source of truth
 

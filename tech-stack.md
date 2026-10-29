@@ -8,7 +8,7 @@
 
 ## Backend
 
-- Node.js with Express and TypeScript
+- Bun runtime with Express and TypeScript
 - Database sessions for authentication
 
 ## Database
