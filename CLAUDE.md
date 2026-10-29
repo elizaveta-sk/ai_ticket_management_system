@@ -21,6 +21,10 @@ The server reads `server/.env` (copy from `server/.env.example`).
 - `server/`: Express + TypeScript, run directly by Bun (no build step). `src/app.ts` defines the app and routes; `src/index.ts` starts the listener. Database access currently uses Bun's built-in `sql` client; Prisma is planned.
 - `implementation-plan.md` tracks progress as a phase-by-phase checklist.
 
+## Documentation
+
+Use Context7 to fetch up-to-date documentation for libraries and tools (Bun, Express, React, Vite, Prisma, etc.) before writing code that depends on them.
+
 ## Source of truth
 
 - `project-scope.md`: problem, features, ticket statuses and categories, user roles.
