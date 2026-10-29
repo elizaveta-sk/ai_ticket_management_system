@@ -22,11 +22,15 @@ Build a ticket management system that uses AI to automatically classify, respond
 
 ## Ticket Statuses
 
+A ticket has exactly one status at a time:
+
 - Open
 - Resolved
 - Closed
 
 ## Ticket Categories
+
+A ticket belongs to exactly one category:
 
 - General Question
 - Technical Question
@@ -34,6 +38,5 @@ Build a ticket management system that uses AI to automatically classify, respond
 
 ## User Roles
 
-- **Admin**: Deployed with the system. Can create and manage agents.
-- **Agent**: Created by admin. Can view and manage tickets.
-
+- **Admin**: The system is deployed with one admin account already set up. The admin creates and manages additional agents.
+- **Agent**: Created by the admin. Can view and manage tickets.
