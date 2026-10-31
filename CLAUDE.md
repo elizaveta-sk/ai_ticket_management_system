@@ -16,6 +16,7 @@ Bun is the runtime and package manager (Bun workspaces: `client`, `server`). Run
 - `bun run build`: build the client
 - `bun --filter server typecheck`: typecheck the server
 - `bun --filter client lint`: lint the client (oxlint)
+- `bun --filter client test`: run the client component tests (Vitest and React Testing Library)
 - `cd client && bunx --bun shadcn@latest add <component>`: add a shadcn/ui component
 
 The server reads `server/.env` (copy from `server/.env.example`). Development uses a local PostgreSQL 18 on port 5433 with the `helpdesk` database.
@@ -39,6 +40,21 @@ Better Auth with email and password, using database-backed sessions through the 
 - **Client:** use `authClient` from `client/src/lib/auth-client.ts` (`useSession`, `signIn.email`, `signOut`). `ProtectedLayout` redirects to `/login` when signed out, so put protected pages under it in `client/src/App.tsx`. Nest admin-only pages inside `AdminRoute` as well, which redirects non-admins to `/`. `session.user.role` is typed by `inferAdditionalFields` in `auth-client.ts`, because the client cannot import the server's auth config. `LoginPage` redirects signed-in users to `/`. These redirects are UX only; the server must enforce access.
 
 ## Testing
+
+### Component and unit tests
+
+These cover the client only, using Vitest, jsdom and React Testing Library (setup in `client/src/test/setup.ts`). Write them in the main session. `client/src/pages/UsersPage.test.tsx` is the example to follow.
+
+- **Files:** put tests next to the code they cover, as `*.test.tsx` for components and `*.test.ts` for plain functions.
+- **Imports:** import `describe`, `it`, `expect` and `vi` from `vitest`, because globals are off.
+- **Rendering:** render anything that uses TanStack Query with `renderWithQuery` (`client/src/test/render-with-query.tsx`), which gives each test a new `QueryClient`.
+- **API calls:** never call the real API. Mock with `vi.spyOn(axios, 'get')`; mocks are restored after each test.
+- **Queries:** prefer `getByRole`, then `getByLabelText` and `getByText`. Use `findBy*` for content that appears after loading.
+- **Coverage:** test what the user sees in each state: loading, loaded, empty and error. Don't test shadcn components or library behaviour.
+- **Boundaries:** access rules and full user flows need the real server, so they belong in the e2e tests.
+- **Running:** use `bun --filter client test`. Plain `bun test` starts Bun's own runner instead of Vitest.
+
+### End-to-end tests
 
 Use the `e2e-test-writer` subagent whenever end-to-end tests need to be added, updated, fixed or run. Don't write Playwright tests in the main session. Tell the subagent which feature or behaviour to cover, and what changed if it relates to recent work. The subagent starts without this conversation's context.
 
