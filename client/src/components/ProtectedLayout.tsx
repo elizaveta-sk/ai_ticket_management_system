@@ -5,7 +5,7 @@ function ProtectedLayout() {
   const { data: session, isPending } = authClient.useSession()
   const navigate = useNavigate()
 
-  if (isPending) return <p className="loading">Loading...</p>
+  if (isPending) return <p className="p-6 text-center text-gray-500">Loading...</p>
   if (!session) return <Navigate to="/login" replace />
 
   async function handleSignOut() {
@@ -15,10 +15,14 @@ function ProtectedLayout() {
 
   return (
     <>
-      <nav className="navbar">
-        <span className="navbar-title">AI Ticket Management System</span>
+      <nav className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-gray-300 bg-white px-6 py-3">
+        <span className="mr-auto font-semibold">AI Ticket Management System</span>
         <span>{session.user.name}</span>
-        <button type="button" onClick={handleSignOut}>
+        <button
+          className="cursor-pointer rounded-md border border-gray-300 bg-white px-3.5 py-2"
+          type="button"
+          onClick={handleSignOut}
+        >
           Sign out
         </button>
       </nav>

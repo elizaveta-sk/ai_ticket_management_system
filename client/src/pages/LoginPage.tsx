@@ -11,6 +11,11 @@ const loginSchema = z.object({
 
 type LoginValues = z.infer<typeof loginSchema>
 
+const labelClass = 'mb-1 block text-sm font-semibold'
+const inputClass =
+  'block w-full rounded-md border border-gray-300 px-2.75 py-2.25 focus:border-blue-600 focus:outline-2 focus:-outline-offset-1 focus:outline-blue-600 aria-[invalid=true]:border-red-700 aria-[invalid=true]:focus:outline-red-700'
+const fieldErrorClass = 'mt-1 text-sm text-red-700'
+
 function LoginPage() {
   const { data: session, isPending } = authClient.useSession()
   const navigate = useNavigate()
@@ -21,7 +26,7 @@ function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm<LoginValues>({ resolver: zodResolver(loginSchema) })
 
-  if (isPending) return <p className="loading">Loading...</p>
+  if (isPending) return <p className="p-6 text-center text-gray-500">Loading...</p>
   if (session) return <Navigate to="/" replace />
 
   async function onSubmit(values: LoginValues) {
@@ -35,13 +40,16 @@ function LoginPage() {
   }
 
   return (
-    <main className="login-page">
-      <div className="login-card">
-        <h1>Sign in</h1>
+    <main className="flex justify-center px-4 py-16">
+      <div className="w-full max-w-95 rounded-[10px] border border-gray-300 bg-white p-7">
+        <h1 className="mb-4 text-2xl font-bold">Sign in</h1>
         <form onSubmit={handleSubmit(onSubmit)} noValidate>
-          <div className="field">
-            <label htmlFor="email">Email</label>
+          <div className="mb-4">
+            <label className={labelClass} htmlFor="email">
+              Email
+            </label>
             <input
+              className={inputClass}
               id="email"
               type="email"
               autoComplete="email"
@@ -49,14 +57,17 @@ function LoginPage() {
               {...register('email')}
             />
             {errors.email && (
-              <p className="field-error" role="alert">
+              <p className={fieldErrorClass} role="alert">
                 {errors.email.message}
               </p>
             )}
           </div>
-          <div className="field">
-            <label htmlFor="password">Password</label>
+          <div className="mb-4">
+            <label className={labelClass} htmlFor="password">
+              Password
+            </label>
             <input
+              className={inputClass}
               id="password"
               type="password"
               autoComplete="current-password"
@@ -64,17 +75,21 @@ function LoginPage() {
               {...register('password')}
             />
             {errors.password && (
-              <p className="field-error" role="alert">
+              <p className={fieldErrorClass} role="alert">
                 {errors.password.message}
               </p>
             )}
           </div>
           {errors.root?.server && (
-            <p className="form-error" role="alert">
+            <p className="mb-4 rounded-md bg-red-50 px-2.75 py-2.25 text-sm text-red-700" role="alert">
               {errors.root.server.message}
             </p>
           )}
-          <button className="submit-button" type="submit" disabled={isSubmitting}>
+          <button
+            className="w-full cursor-pointer rounded-md border border-blue-600 bg-blue-600 px-3.5 py-2.5 font-semibold text-white enabled:hover:border-blue-700 enabled:hover:bg-blue-700 disabled:cursor-default disabled:opacity-60"
+            type="submit"
+            disabled={isSubmitting}
+          >
             {isSubmitting ? 'Signing in...' : 'Sign in'}
           </button>
         </form>

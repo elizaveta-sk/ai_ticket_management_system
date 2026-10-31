@@ -14,8 +14,8 @@ function HomePage() {
   }, [])
 
   return (
-    <main className="page">
-      <h1>Home</h1>
+    <main className="mx-auto max-w-240 p-6">
+      <h1 className="mb-4 text-2xl font-bold">Home</h1>
       {error && <p>{error}</p>}
       {health && (
         <p>
