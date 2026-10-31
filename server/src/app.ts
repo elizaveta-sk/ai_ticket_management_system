@@ -12,7 +12,8 @@ app.all('/api/auth/{*any}', toNodeHandler(auth))
 app.use(express.json())
 
 app.get('/api/me', requireAuth, (req, res) => {
-  res.json({ user: req.user, session: req.session })
+  const { id, name, email, role } = req.user!
+  res.json({ user: { id, name, email, role } })
 })
 
 app.get('/api/health', async (_req, res) => {

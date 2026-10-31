@@ -30,7 +30,7 @@ The server reads `server/.env` (copy from `server/.env.example`). Development us
 
 Better Auth with email and password, using database-backed sessions through the Prisma adapter (`user`, `session`, `account` and `verification` tables).
 
-- **Server config:** `server/src/lib/auth.ts`. Requires `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` and `CLIENT_URL` (the only trusted origin) in `server/.env`.
+- **Server config:** `server/src/lib/auth.ts`. Requires `BETTER_AUTH_SECRET` (at least 32 characters), `BETTER_AUTH_URL` and `CLIENT_URL` (the only trusted origin) in `server/.env`; the server refuses to start without them. Rate limiting is on in every environment, with `/sign-in/email` limited to 5 attempts per minute, using in-memory counters.
 - **Routes:** `app.ts` mounts Better Auth at `/api/auth/*`. This must stay before `express.json()`, because Better Auth reads the raw request body.
 - **Protecting API routes:** add the `requireAuth` middleware (`server/src/middleware/require-auth.ts`). It returns 401 when there is no session and otherwise sets `req.user` and `req.session` (typed in `server/src/types/express.d.ts`). Routes are public unless they use it.
 - **Roles:** `role` is `admin` or `agent` (default `agent`), a Better Auth additional field with `input: false`, so clients cannot set it. No role-checking middleware exists yet; `requireAuth` only checks for a session, so admin-only routes need their own check on `req.user.role`.
