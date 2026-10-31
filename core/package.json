@@ -1,0 +1,11 @@
+{
+  "name": "core",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
+}

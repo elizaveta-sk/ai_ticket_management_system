@@ -1,7 +1,7 @@
 {
   "name": "ai-ticket-management-system",
   "private": true,
-  "workspaces": ["client", "server"],
+  "workspaces": ["client", "server", "core"],
   "scripts": {
     "dev": "bun --filter '*' dev",
     "build": "bun --filter client build",
