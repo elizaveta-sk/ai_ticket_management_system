@@ -1,7 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { Navigate, useNavigate } from 'react-router'
 import { z } from 'zod'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
 import { authClient } from '../lib/auth-client.ts'
 
 const loginSchema = z.object({
@@ -11,22 +16,20 @@ const loginSchema = z.object({
 
 type LoginValues = z.infer<typeof loginSchema>
 
-const labelClass = 'mb-1 block text-sm font-semibold'
-const inputClass =
-  'block w-full rounded-md border border-gray-300 px-2.75 py-2.25 focus:border-blue-600 focus:outline-2 focus:-outline-offset-1 focus:outline-blue-600 aria-[invalid=true]:border-red-700 aria-[invalid=true]:focus:outline-red-700'
-const fieldErrorClass = 'mt-1 text-sm text-red-700'
-
 function LoginPage() {
   const { data: session, isPending } = authClient.useSession()
   const navigate = useNavigate()
   const {
-    register,
+    control,
     handleSubmit,
     setError,
     formState: { errors, isSubmitting },
-  } = useForm<LoginValues>({ resolver: zodResolver(loginSchema) })
+  } = useForm<LoginValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: '', password: '' },
+  })
 
-  if (isPending) return <p className="p-6 text-center text-gray-500">Loading...</p>
+  if (isPending) return <p className="p-6 text-center text-muted-foreground">Loading...</p>
   if (session) return <Navigate to="/" replace />
 
   async function onSubmit(values: LoginValues) {
@@ -41,59 +44,61 @@ function LoginPage() {
 
   return (
     <main className="flex justify-center px-4 py-16">
-      <div className="w-full max-w-95 rounded-[10px] border border-gray-300 bg-white p-7">
-        <h1 className="mb-4 text-2xl font-bold">Sign in</h1>
-        <form onSubmit={handleSubmit(onSubmit)} noValidate>
-          <div className="mb-4">
-            <label className={labelClass} htmlFor="email">
-              Email
-            </label>
-            <input
-              className={inputClass}
-              id="email"
-              type="email"
-              autoComplete="email"
-              aria-invalid={Boolean(errors.email)}
-              {...register('email')}
-            />
-            {errors.email && (
-              <p className={fieldErrorClass} role="alert">
-                {errors.email.message}
-              </p>
-            )}
-          </div>
-          <div className="mb-4">
-            <label className={labelClass} htmlFor="password">
-              Password
-            </label>
-            <input
-              className={inputClass}
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              aria-invalid={Boolean(errors.password)}
-              {...register('password')}
-            />
-            {errors.password && (
-              <p className={fieldErrorClass} role="alert">
-                {errors.password.message}
-              </p>
-            )}
-          </div>
-          {errors.root?.server && (
-            <p className="mb-4 rounded-md bg-red-50 px-2.75 py-2.25 text-sm text-red-700" role="alert">
-              {errors.root.server.message}
-            </p>
-          )}
-          <button
-            className="w-full cursor-pointer rounded-md border border-blue-600 bg-blue-600 px-3.5 py-2.5 font-semibold text-white enabled:hover:border-blue-700 enabled:hover:bg-blue-700 disabled:cursor-default disabled:opacity-60"
-            type="submit"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? 'Signing in...' : 'Sign in'}
-          </button>
-        </form>
-      </div>
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle>
+            <h1 className="text-2xl font-bold">Sign in</h1>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit(onSubmit)} noValidate>
+            <FieldGroup>
+              <Controller
+                name="email"
+                control={control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={field.name}>Email</FieldLabel>
+                    <Input
+                      {...field}
+                      id={field.name}
+                      type="email"
+                      autoComplete="email"
+                      aria-invalid={fieldState.invalid}
+                    />
+                    {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                  </Field>
+                )}
+              />
+              <Controller
+                name="password"
+                control={control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={field.name}>Password</FieldLabel>
+                    <Input
+                      {...field}
+                      id={field.name}
+                      type="password"
+                      autoComplete="current-password"
+                      aria-invalid={fieldState.invalid}
+                    />
+                    {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                  </Field>
+                )}
+              />
+              {errors.root?.server && (
+                <Alert variant="destructive">
+                  <AlertDescription>{errors.root.server.message}</AlertDescription>
+                </Alert>
+              )}
+              <Button className="w-full" type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Signing in...' : 'Sign in'}
+              </Button>
+            </FieldGroup>
+          </form>
+        </CardContent>
+      </Card>
     </main>
   )
 }

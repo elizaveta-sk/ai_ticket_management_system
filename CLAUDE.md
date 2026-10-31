@@ -16,12 +16,13 @@ Bun is the runtime and package manager (Bun workspaces: `client`, `server`). Run
 - `bun run build`: build the client
 - `bun --filter server typecheck`: typecheck the server
 - `bun --filter client lint`: lint the client (oxlint)
+- `cd client && bunx --bun shadcn@latest add <component>`: add a shadcn/ui component
 
 The server reads `server/.env` (copy from `server/.env.example`). Development uses a local PostgreSQL 18 on port 5433 with the `helpdesk` database.
 
 ## Architecture
 
-- `client/`: React + TypeScript (Vite). The Vite dev server proxies `/api/*` to the Express server, so the client calls relative `/api` URLs.
+- `client/`: React + TypeScript (Vite). The Vite dev server proxies `/api/*` to the Express server, so the client calls relative `/api` URLs. UI is built from shadcn/ui components in `src/components/ui` (style `base-nova`, built on Base UI rather than Radix; config in `components.json`, theme variables in `src/index.css`), imported through the `@/*` alias for `src/*`. Forms combine them with React Hook Form's `Controller` and Zod; see `src/pages/LoginPage.tsx`.
 - `server/`: Express + TypeScript, run directly by Bun (no build step). `src/app.ts` defines the app and routes; `src/index.ts` starts the listener. Database access goes through Prisma 7 (`src/lib/prisma.ts`, using the `@prisma/adapter-pg` driver adapter). The client is generated into `src/generated/prisma` (gitignored); `prisma.config.ts` loads `.env` via dotenv.
 - `implementation-plan.md` tracks progress as a phase-by-phase checklist.
 
@@ -44,5 +45,5 @@ Use Context7 to fetch up-to-date documentation for libraries and tools (Bun, Exp
 ## Stack decisions to respect
 
 - Authentication uses database-backed sessions (stored in PostgreSQL), not JWTs.
-- Backend is Express + TypeScript with Prisma; frontend is React + TypeScript + Tailwind + React Router.
+- Backend is Express + TypeScript with Prisma; frontend is React + TypeScript + Tailwind + shadcn/ui + React Router. Use shadcn components and theme tokens (such as `text-muted-foreground`) rather than raw elements and fixed Tailwind colours.
 - AI features (classification, summaries, suggested replies) use the Claude API.

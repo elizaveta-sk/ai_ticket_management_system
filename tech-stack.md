@@ -4,6 +4,7 @@
 
 - React with TypeScript
 - Tailwind CSS
+- shadcn/ui
 - React Router
 
 ## Backend
