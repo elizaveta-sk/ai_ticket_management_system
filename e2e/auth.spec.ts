@@ -209,12 +209,14 @@ test.describe('route guards', () => {
     await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible()
   })
 
-  test.fixme(
-    'an agent is redirected from /users to / and has no Users link',
-    // Needs an agent login; only the admin exists in helpdesk_test. The user must
-    // provide an agent email and password (e.g. AGENT_EMAIL / AGENT_PASSWORD).
-    async () => {},
-  )
+  test('an agent is redirected from /users to / and has no Users link', async ({ page }) => {
+    await gotoAndSubmitLogin(page, process.env.AGENT_EMAIL!, process.env.AGENT_PASSWORD!)
+    await expect(page).toHaveURL('/')
+    await expectSignedIn(page)
+    await expect(page.getByRole('link', { name: 'Users' })).toHaveCount(0)
+    await page.goto('/users')
+    await expect(page).toHaveURL('/')
+  })
 })
 
 test.describe('/api/me', () => {
@@ -255,11 +257,15 @@ test.describe('/api/me', () => {
     expect(raw).not.toContain('password')
   })
 
-  test.fixme(
-    'an agent gets role "agent" from /api/me',
-    // Needs an agent login; only the admin exists in helpdesk_test.
-    async () => {},
-  )
+  test('an agent gets role "agent" from /api/me', async ({ page }) => {
+    await gotoAndSubmitLogin(page, process.env.AGENT_EMAIL!, process.env.AGENT_PASSWORD!)
+    await expect(page).toHaveURL('/')
+    const res = await page.request.get('/api/me')
+    expect(res.status()).toBe(200)
+    const body = await res.json()
+    expect(body.user.email).toBe(process.env.AGENT_EMAIL)
+    expect(body.user.role).toBe('agent')
+  })
 })
 
 test.describe('sign-up disabled', () => {

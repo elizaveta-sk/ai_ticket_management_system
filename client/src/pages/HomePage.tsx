@@ -1,22 +1,23 @@
-import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import axios from 'axios'
 
 type Health = { status: string; database: string }
 
-function HomePage() {
-  const [health, setHealth] = useState<Health | null>(null)
-  const [error, setError] = useState<string | null>(null)
+async function fetchHealth() {
+  // The server answers 503 with a body when the database is unreachable.
+  const res = await axios.get<Health>('/api/health', {
+    validateStatus: (status) => status === 200 || status === 503,
+  })
+  return res.data
+}
 
-  useEffect(() => {
-    fetch('/api/health')
-      .then((res) => res.json())
-      .then(setHealth)
-      .catch(() => setError('Could not reach the server'))
-  }, [])
+function HomePage() {
+  const { data: health, isError } = useQuery({ queryKey: ['health'], queryFn: fetchHealth })
 
   return (
     <main className="mx-auto max-w-240 p-6">
       <h1 className="mb-4 text-2xl font-bold">Home</h1>
-      {error && <p>{error}</p>}
+      {isError && <p>Could not reach the server</p>}
       {health && (
         <p>
           Server: {health.status} · Database: {health.database}

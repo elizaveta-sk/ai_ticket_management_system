@@ -6,6 +6,8 @@
 - Tailwind CSS
 - shadcn/ui
 - React Router
+- Axios for API requests
+- TanStack Query for loading and caching server data
 
 ## Backend
 

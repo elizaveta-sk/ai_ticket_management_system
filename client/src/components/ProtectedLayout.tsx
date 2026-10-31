@@ -1,15 +1,19 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, Outlet, useNavigate } from 'react-router'
 import { authClient } from '../lib/auth-client.ts'
 
 function ProtectedLayout() {
   const { data: session, isPending } = authClient.useSession()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   if (isPending) return <p className="p-6 text-center text-gray-500">Loading...</p>
   if (!session) return <Navigate to="/login" replace />
 
   async function handleSignOut() {
     await authClient.signOut()
+    // Don't leave one user's cached data in memory for the next user of this tab.
+    queryClient.clear()
     navigate('/login', { replace: true })
   }
 
