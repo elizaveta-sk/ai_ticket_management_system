@@ -25,10 +25,9 @@ export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
   emailAndPassword: { enabled: true, disableSignUp: true },
   trustedOrigins: [requireEnv('CLIENT_URL')],
-  // Enabled explicitly because Better Auth otherwise only limits in production.
   // Counters are in memory, so they reset on restart and assume a single instance.
   rateLimit: {
-    enabled: true,
+    enabled: process.env.NODE_ENV === 'production',
     customRules: { '/sign-in/email': { window: 60, max: 5 } },
   },
   user: {

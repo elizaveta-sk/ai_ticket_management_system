@@ -5,7 +5,12 @@
   "scripts": {
     "dev": "bun --filter '*' dev",
     "build": "bun --filter client build",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1"
   }
 }

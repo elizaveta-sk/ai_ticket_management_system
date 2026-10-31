@@ -17,8 +17,9 @@ Bun is the runtime and package manager (Bun workspaces: `client`, `server`). Run
 - `bun --filter server typecheck`: typecheck the server
 - `bun --filter client lint`: lint the client (oxlint)
 - `cd client && bunx --bun shadcn@latest add <component>`: add a shadcn/ui component
+- `bun run test:e2e` / `bun run test:e2e:ui`: run the Playwright tests in `e2e/`, starting their own client (http://localhost:5174) and server (http://localhost:3100)
 
-The server reads `server/.env` (copy from `server/.env.example`). Development uses a local PostgreSQL 18 on port 5433 with the `helpdesk` database.
+The server reads `server/.env` (copy from `server/.env.example`). Development uses a local PostgreSQL 18 on port 5433 with the `helpdesk` database. Playwright uses `server/.env.test` (copy from `server/.env.test.example`) and the `helpdesk_test` database on the same PostgreSQL. It applies migrations and seeds the admin from that file on each run, but does not clear data. `playwright.config.ts` refuses any database whose name doesn't end in `_test`.
 
 ## Architecture
 
@@ -30,7 +31,7 @@ The server reads `server/.env` (copy from `server/.env.example`). Development us
 
 Better Auth with email and password, using database-backed sessions through the Prisma adapter (`user`, `session`, `account` and `verification` tables).
 
-- **Server config:** `server/src/lib/auth.ts`. Requires `BETTER_AUTH_SECRET` (at least 32 characters), `BETTER_AUTH_URL` and `CLIENT_URL` (the only trusted origin) in `server/.env`; the server refuses to start without them. Rate limiting is on in every environment, with `/sign-in/email` limited to 5 attempts per minute, using in-memory counters.
+- **Server config:** `server/src/lib/auth.ts`. Requires `BETTER_AUTH_SECRET` (at least 32 characters), `BETTER_AUTH_URL` and `CLIENT_URL` (the only trusted origin) in `server/.env`; the server refuses to start without them. Rate limiting is on only when `NODE_ENV=production`, with `/sign-in/email` limited to 5 attempts per minute, using in-memory counters.
 - **Routes:** `app.ts` mounts Better Auth at `/api/auth/*`. This must stay before `express.json()`, because Better Auth reads the raw request body.
 - **Protecting API routes:** add the `requireAuth` middleware (`server/src/middleware/require-auth.ts`). It returns 401 when there is no session and otherwise sets `req.user` and `req.session` (typed in `server/src/types/express.d.ts`). Routes are public unless they use it.
 - **Roles:** `role` is `admin` or `agent` (default `agent`), a Better Auth additional field with `input: false`, so clients cannot set it. No role-checking middleware exists yet; `requireAuth` only checks for a session, so admin-only routes need their own check on `req.user.role`.
