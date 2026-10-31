@@ -14,8 +14,8 @@ function HomePage() {
   }, [])
 
   return (
-    <main>
-      <h1>AI Ticket Management System</h1>
+    <main className="page">
+      <h1>Home</h1>
       {error && <p>{error}</p>}
       {health && (
         <p>
