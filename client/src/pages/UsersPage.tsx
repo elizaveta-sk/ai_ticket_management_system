@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -38,10 +39,9 @@ function UsersPage() {
           <AlertDescription>Could not load users</AlertDescription>
         </Alert>
       )}
-      {isPending && <p className="text-muted-foreground">Loading...</p>}
       {users?.length === 0 && <p className="text-muted-foreground">No users found.</p>}
-      {users && users.length > 0 && (
-        <Table>
+      {(isPending || (users && users.length > 0)) && (
+        <Table aria-busy={isPending}>
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
@@ -51,7 +51,24 @@ function UsersPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users.map((user) => (
+            {isPending &&
+              ['first', 'second', 'third'].map((row) => (
+                <TableRow key={row}>
+                  <TableCell>
+                    <Skeleton className="h-4 w-28" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-44" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-5 w-14 rounded-full" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-20" />
+                  </TableCell>
+                </TableRow>
+              ))}
+            {users?.map((user) => (
               <TableRow key={user.id}>
                 <TableCell className="font-medium">{user.name}</TableCell>
                 <TableCell>{user.email}</TableCell>

@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, Outlet, useNavigate } from 'react-router'
+import { Skeleton } from '@/components/ui/skeleton'
 import { authClient } from '../lib/auth-client.ts'
 
 function ProtectedLayout() {
@@ -7,7 +8,20 @@ function ProtectedLayout() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  if (isPending) return <p className="p-6 text-center text-gray-500">Loading...</p>
+  if (isPending) {
+    return (
+      <div role="status" aria-label="Loading">
+        <div className="flex items-center gap-4 border-b border-border px-6 py-3">
+          <Skeleton className="mr-auto h-5 w-56" />
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-9 w-20" />
+        </div>
+        <div className="mx-auto max-w-240 p-6">
+          <Skeleton className="h-8 w-32" />
+        </div>
+      </div>
+    )
+  }
   if (!session) return <Navigate to="/login" replace />
 
   async function handleSignOut() {
@@ -20,7 +34,9 @@ function ProtectedLayout() {
   return (
     <>
       <nav className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-gray-300 bg-white px-6 py-3">
-        <span className="mr-auto font-semibold">AI Ticket Management System</span>
+        <Link className="mr-auto font-semibold hover:underline" to="/">
+          AI Ticket Management System
+        </Link>
         {session.user.role === 'admin' && (
           <Link className="hover:underline" to="/users">
             Users

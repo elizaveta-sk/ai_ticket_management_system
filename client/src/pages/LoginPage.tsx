@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { authClient } from '../lib/auth-client.ts'
 
 const loginSchema = z.object({
@@ -29,7 +30,22 @@ function LoginPage() {
     defaultValues: { email: '', password: '' },
   })
 
-  if (isPending) return <p className="p-6 text-center text-muted-foreground">Loading...</p>
+  if (isPending) {
+    return (
+      <main className="flex justify-center px-4 py-16">
+        <Card className="w-full max-w-sm" role="status" aria-label="Loading">
+          <CardHeader>
+            <Skeleton className="h-8 w-28" />
+          </CardHeader>
+          <CardContent className="flex flex-col gap-6">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </CardContent>
+        </Card>
+      </main>
+    )
+  }
   if (session) return <Navigate to="/" replace />
 
   async function onSubmit(values: LoginValues) {
