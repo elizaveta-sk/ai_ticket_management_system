@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { hashPassword } from 'better-auth/crypto'
+import { Role } from '../src/generated/prisma/client.ts'
 import { prisma } from '../src/lib/prisma.ts'
 
 const email = process.env.ADMIN_EMAIL
@@ -16,8 +17,8 @@ const passwordHash = await hashPassword(password)
 await prisma.$transaction(async (tx) => {
   const user = await tx.user.upsert({
     where: { email },
-    update: { role: 'admin' },
-    create: { id: randomUUID(), name: 'Admin', email, emailVerified: true, role: 'admin' },
+    update: { role: Role.admin },
+    create: { id: randomUUID(), name: 'Admin', email, emailVerified: true, role: Role.admin },
   })
 
   const account = await tx.account.findFirst({
