@@ -1,28 +1,16 @@
-import { useEffect, useState } from 'react'
-
-type Health = { status: string; database: string }
+import { Route, Routes } from 'react-router'
+import ProtectedLayout from './components/ProtectedLayout.tsx'
+import HomePage from './pages/HomePage.tsx'
+import LoginPage from './pages/LoginPage.tsx'
 
 function App() {
-  const [health, setHealth] = useState<Health | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    fetch('/api/health')
-      .then((res) => res.json())
-      .then(setHealth)
-      .catch(() => setError('Could not reach the server'))
-  }, [])
-
   return (
-    <main>
-      <h1>AI Ticket Management System</h1>
-      {error && <p>{error}</p>}
-      {health && (
-        <p>
-          Server: {health.status} · Database: {health.database}
-        </p>
-      )}
-    </main>
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route element={<ProtectedLayout />}>
+        <Route index element={<HomePage />} />
+      </Route>
+    </Routes>
   )
 }
 

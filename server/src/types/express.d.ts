@@ -1,6 +1,7 @@
 import type { auth } from '../lib/auth.ts'
 
-type AuthSession = typeof auth.$Infer.Session
+type AuthSdisable the sign-up endpointession = typeof auth.$Infer.Session
+
 
 declare global {
   namespace Express {
