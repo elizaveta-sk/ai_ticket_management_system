@@ -26,6 +26,17 @@ The server reads `server/.env` (copy from `server/.env.example`). Development us
 - `server/`: Express + TypeScript, run directly by Bun (no build step). `src/app.ts` defines the app and routes; `src/index.ts` starts the listener. Database access goes through Prisma 7 (`src/lib/prisma.ts`, using the `@prisma/adapter-pg` driver adapter). The client is generated into `src/generated/prisma` (gitignored); `prisma.config.ts` loads `.env` via dotenv.
 - `implementation-plan.md` tracks progress as a phase-by-phase checklist.
 
+## Authentication
+
+Better Auth with email and password, using database-backed sessions through the Prisma adapter (`user`, `session`, `account` and `verification` tables).
+
+- **Server config:** `server/src/lib/auth.ts`. Requires `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` and `CLIENT_URL` (the only trusted origin) in `server/.env`.
+- **Routes:** `app.ts` mounts Better Auth at `/api/auth/*`. This must stay before `express.json()`, because Better Auth reads the raw request body.
+- **Protecting API routes:** add the `requireAuth` middleware (`server/src/middleware/require-auth.ts`). It returns 401 when there is no session and otherwise sets `req.user` and `req.session` (typed in `server/src/types/express.d.ts`). Routes are public unless they use it.
+- **Roles:** `role` is `admin` or `agent` (default `agent`), a Better Auth additional field with `input: false`, so clients cannot set it. No role-checking middleware exists yet; `requireAuth` only checks for a session, so admin-only routes need their own check on `req.user.role`.
+- **Creating users:** public sign-up is disabled (`disableSignUp: true`). The Better Auth sign-up endpoint is unavailable, so `server/prisma/seed.ts` writes the `user` row and a `credential` `account` row directly, hashing the password with `hashPassword` from `better-auth/crypto`. Re-running the seed resets the admin's role and password to the env values.
+- **Client:** use `authClient` from `client/src/lib/auth-client.ts` (`useSession`, `signIn.email`, `signOut`). `ProtectedLayout` redirects to `/login` when signed out, so put protected pages under it in `client/src/App.tsx`. Nest admin-only pages inside `AdminRoute` as well, which redirects non-admins to `/`. `session.user.role` is typed by `inferAdditionalFields` in `auth-client.ts`, because the client cannot import the server's auth config. `LoginPage` redirects signed-in users to `/`. These redirects are UX only; the server must enforce access.
+
 ## Documentation
 
 Use Context7 to fetch up-to-date documentation for libraries and tools (Bun, Express, React, Vite, Prisma, etc.) before writing code that depends on them.

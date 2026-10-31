@@ -1,4 +1,4 @@
-import { Navigate, Outlet, useNavigate } from 'react-router'
+import { Link, Navigate, Outlet, useNavigate } from 'react-router'
 import { authClient } from '../lib/auth-client.ts'
 
 function ProtectedLayout() {
@@ -17,6 +17,11 @@ function ProtectedLayout() {
     <>
       <nav className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-gray-300 bg-white px-6 py-3">
         <span className="mr-auto font-semibold">AI Ticket Management System</span>
+        {session.user.role === 'admin' && (
+          <Link className="hover:underline" to="/users">
+            Users
+          </Link>
+        )}
         <span>{session.user.name}</span>
         <button
           className="cursor-pointer rounded-md border border-gray-300 bg-white px-3.5 py-2"
