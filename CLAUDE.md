@@ -17,14 +17,14 @@ Bun is the runtime and package manager (Bun workspaces: `client`, `server`). Run
 - `bun --filter server typecheck`: typecheck the server
 - `bun --filter client lint`: lint the client (oxlint)
 - `cd client && bunx --bun shadcn@latest add <component>`: add a shadcn/ui component
-- `bun run test:e2e` / `bun run test:e2e:ui`: run the Playwright tests in `e2e/`, starting their own client (http://localhost:5174) and server (http://localhost:3100)
 
-The server reads `server/.env` (copy from `server/.env.example`). Development uses a local PostgreSQL 18 on port 5433 with the `helpdesk` database. Playwright uses `server/.env.test` (copy from `server/.env.test.example`) and the `helpdesk_test` database on the same PostgreSQL. It applies migrations and seeds the admin from that file on each run, but does not clear data. `playwright.config.ts` refuses any database whose name doesn't end in `_test`.
+The server reads `server/.env` (copy from `server/.env.example`). Development uses a local PostgreSQL 18 on port 5433 with the `helpdesk` database.
 
 ## Architecture
 
 - `client/`: React + TypeScript (Vite). The Vite dev server proxies `/api/*` to the Express server, so the client calls relative `/api` URLs. UI is built from shadcn/ui components in `src/components/ui` (style `base-nova`, built on Base UI rather than Radix; config in `components.json`, theme variables in `src/index.css`), imported through the `@/*` alias for `src/*`. Forms combine them with React Hook Form's `Controller` and Zod; see `src/pages/LoginPage.tsx`.
 - `server/`: Express + TypeScript, run directly by Bun (no build step). `src/app.ts` defines the app and routes; `src/index.ts` starts the listener. Database access goes through Prisma 7 (`src/lib/prisma.ts`, using the `@prisma/adapter-pg` driver adapter). The client is generated into `src/generated/prisma` (gitignored); `prisma.config.ts` loads `.env` via dotenv.
+- `e2e/`: Playwright end-to-end tests. See Testing below.
 - `implementation-plan.md` tracks progress as a phase-by-phase checklist.
 
 ## Authentication
@@ -37,6 +37,12 @@ Better Auth with email and password, using database-backed sessions through the 
 - **Roles:** `role` is `admin` or `agent` (default `agent`), a Better Auth additional field with `input: false`, so clients cannot set it. No role-checking middleware exists yet; `requireAuth` only checks for a session, so admin-only routes need their own check on `req.user.role`.
 - **Creating users:** public sign-up is disabled (`disableSignUp: true`). The Better Auth sign-up endpoint is unavailable, so `server/prisma/seed.ts` writes the `user` row and a `credential` `account` row directly, hashing the password with `hashPassword` from `better-auth/crypto`. Re-running the seed resets the admin's role and password to the env values.
 - **Client:** use `authClient` from `client/src/lib/auth-client.ts` (`useSession`, `signIn.email`, `signOut`). `ProtectedLayout` redirects to `/login` when signed out, so put protected pages under it in `client/src/App.tsx`. Nest admin-only pages inside `AdminRoute` as well, which redirects non-admins to `/`. `session.user.role` is typed by `inferAdditionalFields` in `auth-client.ts`, because the client cannot import the server's auth config. `LoginPage` redirects signed-in users to `/`. These redirects are UX only; the server must enforce access.
+
+## Testing
+
+Use the `e2e-test-writer` subagent whenever end-to-end tests need to be added, updated, fixed or run. Don't write Playwright tests in the main session. Tell the subagent which feature or behaviour to cover, and what changed if it relates to recent work. The subagent starts without this conversation's context.
+
+The subagent's setup and rules are in `.claude/agents/e2e-test-writer.md`. It does not commit, change application code or invent user accounts, so it reports any bugs it finds or logins it needs. Act on that report: relay failures to the user and get any missing email and password from them.
 
 ## Documentation
 

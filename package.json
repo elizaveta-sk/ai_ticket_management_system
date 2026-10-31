@@ -11,6 +11,7 @@
     "db:down": "docker compose down"
   },
   "devDependencies": {
-    "@playwright/test": "^1.64.1"
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^24.19.2"
   }
 }
