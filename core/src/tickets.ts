@@ -25,3 +25,12 @@ export const inboundEmailSchema = z.object({
 })
 
 export type InboundEmail = z.infer<typeof inboundEmailSchema>
+
+// The query string of GET /api/tickets. Only these columns can be sorted, and
+// without any parameters the newest tickets come first.
+export const ticketSortSchema = z.object({
+  sortBy: z
+    .enum(['subject', 'senderName', 'status', 'category', 'createdAt'], 'Invalid sort column')
+    .default('createdAt'),
+  sortOrder: z.enum(['asc', 'desc'], 'Invalid sort order').default('desc'),
+})

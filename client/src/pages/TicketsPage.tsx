@@ -1,17 +1,30 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import type { SortingState } from '@tanstack/react-table'
 import axios from 'axios'
+import { useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import TicketsTable, { type Ticket } from '../components/TicketsTable.tsx'
 
-async function fetchTickets() {
-  const res = await axios.get<{ tickets: Ticket[] }>('/api/tickets')
+async function fetchTickets(sorting: SortingState) {
+  const [{ id, desc }] = sorting
+  const res = await axios.get<{ tickets: Ticket[] }>('/api/tickets', {
+    params: { sortBy: id, sortOrder: desc ? 'desc' : 'asc' },
+  })
   return res.data.tickets
 }
 
 function TicketsPage() {
-  const { data: tickets, isPending, isError } = useQuery({
-    queryKey: ['tickets'],
-    queryFn: fetchTickets,
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'createdAt', desc: true }])
+  const {
+    data: tickets,
+    isPending,
+    isError,
+    isPlaceholderData,
+  } = useQuery({
+    queryKey: ['tickets', sorting],
+    queryFn: () => fetchTickets(sorting),
+    // Keep the current rows on screen until the newly sorted ones arrive.
+    placeholderData: keepPreviousData,
   })
 
   return (
@@ -24,7 +37,13 @@ function TicketsPage() {
       )}
       {tickets?.length === 0 && <p className="text-muted-foreground">No tickets found.</p>}
       {(isPending || (tickets && tickets.length > 0)) && (
-        <TicketsTable tickets={tickets} isPending={isPending} />
+        <TicketsTable
+          tickets={tickets}
+          isPending={isPending}
+          isUpdating={isPlaceholderData}
+          sorting={sorting}
+          onSortingChange={setSorting}
+        />
       )}
     </main>
   )

@@ -8,6 +8,7 @@
 - React Router
 - Axios for API requests
 - TanStack Query for loading and caching server data
+- TanStack Table for table state such as sorting
 - Vitest and React Testing Library for component tests
 
 ## Backend

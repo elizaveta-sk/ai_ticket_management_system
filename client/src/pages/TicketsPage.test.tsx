@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import axios from 'axios'
 import { describe, expect, it, vi } from 'vitest'
 import { renderWithQuery } from '../test/render-with-query.tsx'
@@ -52,7 +52,9 @@ describe('TicketsPage', () => {
       within(row).getByText(new Date(tickets[0].createdAt).toLocaleString()),
     ).toBeInTheDocument()
 
-    expect(get).toHaveBeenCalledWith('/api/tickets')
+    expect(get).toHaveBeenCalledWith('/api/tickets', {
+      params: { sortBy: 'createdAt', sortOrder: 'desc' },
+    })
     expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'false')
     expect(container.querySelector('[data-slot="skeleton"]')).not.toBeInTheDocument()
   })
@@ -76,6 +78,132 @@ describe('TicketsPage', () => {
     const [, firstRow, secondRow] = screen.getAllByRole('row')
     expect(within(firstRow).getByText(tickets[0].subject)).toBeInTheDocument()
     expect(within(secondRow).getByText(tickets[1].subject)).toBeInTheDocument()
+  })
+
+  it('marks Created as the sorted column to begin with', async () => {
+    vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+
+    renderWithQuery(<TicketsPage />)
+    await screen.findByRole('cell', { name: tickets[0].subject })
+
+    expect(screen.getByRole('columnheader', { name: 'Created' })).toHaveAttribute(
+      'aria-sort',
+      'descending',
+    )
+    expect(screen.getByRole('columnheader', { name: 'Subject' })).toHaveAttribute(
+      'aria-sort',
+      'none',
+    )
+  })
+
+  it('asks the server to sort when a header is clicked, and shows the order it returns', async () => {
+    const get = vi
+      .spyOn(axios, 'get')
+      .mockResolvedValueOnce({ data: { tickets } })
+      .mockResolvedValueOnce({ data: { tickets: [tickets[1], tickets[0]] } })
+
+    renderWithQuery(<TicketsPage />)
+    await screen.findByRole('cell', { name: tickets[0].subject })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Subject' }))
+
+    await waitFor(() =>
+      expect(get).toHaveBeenLastCalledWith('/api/tickets', {
+        params: { sortBy: 'subject', sortOrder: 'asc' },
+      }),
+    )
+    await waitFor(() => {
+      const [, firstRow] = screen.getAllByRole('row')
+      expect(within(firstRow).getByText(tickets[1].subject)).toBeInTheDocument()
+    })
+    expect(screen.getByRole('columnheader', { name: 'Subject' })).toHaveAttribute(
+      'aria-sort',
+      'ascending',
+    )
+    expect(screen.getByRole('columnheader', { name: 'Created' })).toHaveAttribute(
+      'aria-sort',
+      'none',
+    )
+  })
+
+  it.each([
+    ['Subject', 'subject'],
+    ['Sender', 'senderName'],
+    ['Status', 'status'],
+    ['Category', 'category'],
+  ])('sorts %s ascending, then descending, then ascending again', async (name, sortBy) => {
+    const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+
+    renderWithQuery(<TicketsPage />)
+    await screen.findByRole('cell', { name: tickets[0].subject })
+
+    for (const sortOrder of ['asc', 'desc', 'asc']) {
+      fireEvent.click(screen.getByRole('button', { name }))
+      await waitFor(() =>
+        expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'false'),
+      )
+      expect(screen.getByRole('columnheader', { name })).toHaveAttribute(
+        'aria-sort',
+        sortOrder === 'asc' ? 'ascending' : 'descending',
+      )
+      expect(get).toHaveBeenCalledWith('/api/tickets', { params: { sortBy, sortOrder } })
+    }
+  })
+
+  it('sorts Created newest first when returning to it from another column', async () => {
+    const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+
+    renderWithQuery(<TicketsPage />)
+    await screen.findByRole('cell', { name: tickets[0].subject })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Created' }))
+    await waitFor(() =>
+      expect(get).toHaveBeenLastCalledWith('/api/tickets', {
+        params: { sortBy: 'createdAt', sortOrder: 'asc' },
+      }),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Created' }))
+
+    expect(screen.getByRole('columnheader', { name: 'Created' })).toHaveAttribute(
+      'aria-sort',
+      'descending',
+    )
+  })
+
+  it('keeps the current rows on screen, marked busy, while a new sort loads', async () => {
+    vi.spyOn(axios, 'get')
+      .mockResolvedValueOnce({ data: { tickets } })
+      .mockReturnValueOnce(new Promise(() => {}))
+
+    const { container } = renderWithQuery(<TicketsPage />)
+    await screen.findByRole('cell', { name: tickets[0].subject })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Subject' }))
+
+    await waitFor(() => expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'true'))
+    expect(screen.getByRole('cell', { name: tickets[0].subject })).toBeInTheDocument()
+    expect(container.querySelector('[data-slot="skeleton"]')).not.toBeInTheDocument()
+  })
+
+  it('sorts by one column only, even with shift held', async () => {
+    const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+
+    renderWithQuery(<TicketsPage />)
+    await screen.findByRole('cell', { name: tickets[0].subject })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Subject' }), { shiftKey: true })
+
+    await waitFor(() =>
+      expect(get).toHaveBeenLastCalledWith('/api/tickets', {
+        params: { sortBy: 'subject', sortOrder: 'asc' },
+      }),
+    )
+    expect(screen.getByRole('columnheader', { name: 'Created' })).toHaveAttribute(
+      'aria-sort',
+      'none',
+    )
   })
 
   it('shows an empty message and no table when there are no tickets', async () => {

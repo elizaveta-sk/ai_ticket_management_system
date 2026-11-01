@@ -10,6 +10,7 @@ Bun is the runtime and package manager (Bun workspaces: `client`, `server`, `cor
 - `bun --filter server db:migrate`: create/apply a Prisma migration after editing `server/prisma/schema.prisma`
 - `bun --filter server db:generate`: regenerate the Prisma client (also runs on `bun install`)
 - `bun --filter server db:seed`: create or update the admin user from `ADMIN_EMAIL` and `ADMIN_PASSWORD`
+- `bun --filter server db:seed:tickets`: add 100 sample tickets for development (refuses to run in production)
 - `bun --filter server db:studio`: open Prisma Studio
 - `bun run db:up` / `bun run db:down`: optional PostgreSQL in Docker (`docker-compose.yml`)
 - `bun run dev`: run client (Vite, http://localhost:5173) and server (http://localhost:3000) together

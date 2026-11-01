@@ -1,5 +1,27 @@
 import { describe, expect, it } from 'vitest'
-import { inboundEmailSchema } from './tickets.ts'
+import { inboundEmailSchema, ticketSortSchema } from './tickets.ts'
+
+describe('ticketSortSchema', () => {
+  it('defaults to newest first', () => {
+    expect(ticketSortSchema.parse({})).toEqual({ sortBy: 'createdAt', sortOrder: 'desc' })
+  })
+
+  it.each(['subject', 'senderName', 'status', 'category', 'createdAt'])('accepts %s', (sortBy) => {
+    expect(ticketSortSchema.parse({ sortBy, sortOrder: 'asc' })).toEqual({
+      sortBy,
+      sortOrder: 'asc',
+    })
+  })
+
+  it.each([
+    ['a column that cannot be sorted', { sortBy: 'body' }],
+    ['a blank column', { sortBy: '' }],
+    ['a repeated column', { sortBy: ['subject', 'status'] }],
+    ['an unknown order', { sortOrder: 'sideways' }],
+  ])('rejects %s', (_label, input) => {
+    expect(ticketSortSchema.safeParse(input).success).toBe(false)
+  })
+})
 
 const validEmail = {
   messageId: '<abc@mail.example.com>',

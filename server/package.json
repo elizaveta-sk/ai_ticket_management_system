@@ -10,6 +10,7 @@
     "db:generate": "bunx --bun prisma generate",
     "db:migrate": "bunx --bun prisma migrate dev",
     "db:seed": "bun prisma/seed.ts",
+    "db:seed:tickets": "bun prisma/seed-demo-tickets.ts",
     "db:studio": "bunx --bun prisma studio"
   },
   "dependencies": {
