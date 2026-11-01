@@ -41,6 +41,14 @@ Better Auth with email and password, using database-backed sessions through the 
 - **Deleting users:** `DELETE /api/users/:id` is a soft delete, and admin accounts cannot be deleted. It sets `deletedAt`, moves the email to `deletedEmail` so it can be reused, replaces `email` with a placeholder and deletes the user's sessions. The `session.create.before` hook in `server/src/lib/auth.ts` stops deleted users signing in. Queries that read users must filter on `deletedAt: null`.
 - **Client:** use `authClient` from `client/src/lib/auth-client.ts` (`useSession`, `signIn.email`, `signOut`). `ProtectedLayout` redirects to `/login` when signed out, so put protected pages under it in `client/src/App.tsx`. Nest admin-only pages inside `AdminRoute` as well, which redirects non-admins to `/`. `session.user.role` is typed by `inferAdditionalFields` in `auth-client.ts`, because the client cannot import the server's auth config. `LoginPage` redirects signed-in users to `/`. These redirects are UX only; the server must enforce access.
 
+## Inbound email
+
+No email provider is set up yet. `POST /api/webhooks/inbound-email` (`server/src/routes/webhooks.ts`) takes a provider-neutral JSON body, validated by `inboundEmailSchema` in `core/src/tickets.ts`, and creates a ticket with status `open` and no category (`category` is null until the ticket is classified). `fromName` is required, so an email without one gets a 400. When a provider is chosen, map its webhook format to that schema and replace the secret check with its signature check.
+
+- **Authentication:** the request must send `INBOUND_EMAIL_SECRET` in the `x-webhook-secret` header (`server/src/middleware/require-webhook-secret.ts`). If the secret is missing or is a placeholder, the endpoint returns 503 rather than accepting anything.
+- **Duplicates:** `messageId` is unique, so a repeated delivery returns 200 with the existing ticket instead of creating another.
+- **Mounting:** the router stays before `express.json()` in `app.ts` because it sets its own 1mb body limit.
+
 ## Testing
 
 ### Component and unit tests

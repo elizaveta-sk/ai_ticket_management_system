@@ -17,7 +17,7 @@
 
 ## Phase 3: User Management
 
-- [ ] Create user management page (admin only)
+- [X] Create user management page (admin only)
 - [x] Implement create agent API endpoint
 - [x] Implement list users API endpoint
 - [x] Implement edit user API endpoint
@@ -45,7 +45,7 @@
 ## Phase 6: Email Integration
 
 - [ ] Set up email provider (SendGrid/Mailgun)
-- [ ] Implement inbound email webhook to create tickets
+- [x] Implement inbound email webhook to create tickets
 - [ ] Implement outbound email sending when an agent replies
 - [ ] Handle email threading (replies linked to existing tickets)
 

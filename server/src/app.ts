@@ -3,11 +3,15 @@ import express from 'express'
 import { auth } from './lib/auth.ts'
 import { prisma } from './lib/prisma.ts'
 import { usersRouter } from './routes/users.ts'
+import { webhooksRouter } from './routes/webhooks.ts'
 
 export const app = express()
 
 // Must come before express.json(): Better Auth reads the raw request body.
 app.all('/api/auth/{*any}', toNodeHandler(auth))
+
+// Must come before express.json(): this router sets its own body size limit.
+app.use('/api/webhooks', webhooksRouter)
 
 app.use(express.json())
 

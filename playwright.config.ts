@@ -44,6 +44,7 @@ export default defineConfig({
         BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET!,
         BETTER_AUTH_URL: serverUrl,
         CLIENT_URL: clientUrl,
+        INBOUND_EMAIL_SECRET: process.env.INBOUND_EMAIL_SECRET!,
       },
     },
     {

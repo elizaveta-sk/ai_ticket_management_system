@@ -17,6 +17,35 @@ enum Role {
   agent
 }
 
+enum TicketStatus {
+  open
+  resolved
+  closed
+}
+
+enum TicketCategory {
+  general_question
+  technical_question
+  refund_request
+}
+
+model Ticket {
+  id          Int            @id @default(autoincrement())
+  // The email's Message-ID. Unique so a webhook delivered twice creates one ticket.
+  messageId   String         @unique
+  senderEmail String
+  senderName  String
+  subject     String
+  body        String
+  status      TicketStatus   @default(open)
+  // Empty until the ticket is classified.
+  category    TicketCategory?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@map("ticket")
+}
+
 model User {
   id            String    @id
   name          String
