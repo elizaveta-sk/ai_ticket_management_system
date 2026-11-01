@@ -39,7 +39,7 @@ describe('TicketsPage', () => {
   })
 
   it('requests /api/tickets and shows a row for each ticket with readable labels', async () => {
-    const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+    const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
     const { container } = renderWithQuery(<TicketsPage />)
 
@@ -53,14 +53,14 @@ describe('TicketsPage', () => {
     ).toBeInTheDocument()
 
     expect(get).toHaveBeenCalledWith('/api/tickets', {
-      params: { sortBy: 'createdAt', sortOrder: 'desc' },
+      params: { sortBy: 'createdAt', sortOrder: 'desc', page: 1, pageSize: 20 },
     })
     expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'false')
     expect(container.querySelector('[data-slot="skeleton"]')).not.toBeInTheDocument()
   })
 
   it('shows Uncategorized for a ticket without a category', async () => {
-    vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+    vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
     renderWithQuery(<TicketsPage />)
 
@@ -70,7 +70,7 @@ describe('TicketsPage', () => {
   })
 
   it('keeps the newest-first order sent by the server', async () => {
-    vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+    vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
     renderWithQuery(<TicketsPage />)
     await screen.findByRole('cell', { name: tickets[0].subject })
@@ -81,7 +81,7 @@ describe('TicketsPage', () => {
   })
 
   it('marks Created as the sorted column to begin with', async () => {
-    vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+    vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
     renderWithQuery(<TicketsPage />)
     await screen.findByRole('cell', { name: tickets[0].subject })
@@ -99,8 +99,8 @@ describe('TicketsPage', () => {
   it('asks the server to sort when a header is clicked, and shows the order it returns', async () => {
     const get = vi
       .spyOn(axios, 'get')
-      .mockResolvedValueOnce({ data: { tickets } })
-      .mockResolvedValueOnce({ data: { tickets: [tickets[1], tickets[0]] } })
+      .mockResolvedValueOnce({ data: { tickets, total: tickets.length } })
+      .mockResolvedValueOnce({ data: { tickets: [tickets[1], tickets[0]], total: 2 } })
 
     renderWithQuery(<TicketsPage />)
     await screen.findByRole('cell', { name: tickets[0].subject })
@@ -109,7 +109,7 @@ describe('TicketsPage', () => {
 
     await waitFor(() =>
       expect(get).toHaveBeenLastCalledWith('/api/tickets', {
-        params: { sortBy: 'subject', sortOrder: 'asc' },
+        params: { sortBy: 'subject', sortOrder: 'asc', page: 1, pageSize: 20 },
       }),
     )
     await waitFor(() => {
@@ -132,7 +132,7 @@ describe('TicketsPage', () => {
     ['Status', 'status'],
     ['Category', 'category'],
   ])('sorts %s ascending, then descending, then ascending again', async (name, sortBy) => {
-    const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+    const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
     renderWithQuery(<TicketsPage />)
     await screen.findByRole('cell', { name: tickets[0].subject })
@@ -146,12 +146,12 @@ describe('TicketsPage', () => {
         'aria-sort',
         sortOrder === 'asc' ? 'ascending' : 'descending',
       )
-      expect(get).toHaveBeenCalledWith('/api/tickets', { params: { sortBy, sortOrder } })
+      expect(get).toHaveBeenCalledWith('/api/tickets', { params: { sortBy, sortOrder, page: 1, pageSize: 20 } })
     }
   })
 
   it('sorts Created newest first when returning to it from another column', async () => {
-    const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+    const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
     renderWithQuery(<TicketsPage />)
     await screen.findByRole('cell', { name: tickets[0].subject })
@@ -159,7 +159,7 @@ describe('TicketsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Created' }))
     await waitFor(() =>
       expect(get).toHaveBeenLastCalledWith('/api/tickets', {
-        params: { sortBy: 'createdAt', sortOrder: 'asc' },
+        params: { sortBy: 'createdAt', sortOrder: 'asc', page: 1, pageSize: 20 },
       }),
     )
 
@@ -174,7 +174,7 @@ describe('TicketsPage', () => {
 
   it('keeps the current rows on screen, marked busy, while a new sort loads', async () => {
     vi.spyOn(axios, 'get')
-      .mockResolvedValueOnce({ data: { tickets } })
+      .mockResolvedValueOnce({ data: { tickets, total: tickets.length } })
       .mockReturnValueOnce(new Promise(() => {}))
 
     const { container } = renderWithQuery(<TicketsPage />)
@@ -188,7 +188,7 @@ describe('TicketsPage', () => {
   })
 
   it('sorts by one column only, even with shift held', async () => {
-    const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+    const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
     renderWithQuery(<TicketsPage />)
     await screen.findByRole('cell', { name: tickets[0].subject })
@@ -197,7 +197,7 @@ describe('TicketsPage', () => {
 
     await waitFor(() =>
       expect(get).toHaveBeenLastCalledWith('/api/tickets', {
-        params: { sortBy: 'subject', sortOrder: 'asc' },
+        params: { sortBy: 'subject', sortOrder: 'asc', page: 1, pageSize: 20 },
       }),
     )
     expect(screen.getByRole('columnheader', { name: 'Created' })).toHaveAttribute(
@@ -220,7 +220,7 @@ describe('TicketsPage', () => {
     }
 
     it('starts with every ticket and sends no filters', async () => {
-      const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+      const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
       renderWithQuery(<TicketsPage />)
       await screen.findByRole('cell', { name: tickets[0].subject })
@@ -231,14 +231,14 @@ describe('TicketsPage', () => {
       expect(screen.getByRole('combobox', { name: 'Filter by category' })).toHaveTextContent(
         'All categories',
       )
-      expect(get.mock.calls[0][1]?.params).toEqual({ sortBy: 'createdAt', sortOrder: 'desc' })
+      expect(get.mock.calls[0][1]?.params).toEqual({ sortBy: 'createdAt', sortOrder: 'desc', page: 1, pageSize: 20 })
     })
 
     it('asks the server for the chosen status and shows the rows it returns', async () => {
       const get = vi
         .spyOn(axios, 'get')
-        .mockResolvedValueOnce({ data: { tickets } })
-        .mockResolvedValueOnce({ data: { tickets: [tickets[0]] } })
+        .mockResolvedValueOnce({ data: { tickets, total: tickets.length } })
+        .mockResolvedValueOnce({ data: { tickets: [tickets[0]], total: 1 } })
 
       renderWithQuery(<TicketsPage />)
       await screen.findByRole('cell', { name: tickets[1].subject })
@@ -253,7 +253,7 @@ describe('TicketsPage', () => {
     })
 
     it('offers the three categories and Uncategorized', async () => {
-      vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets: [] } })
+      vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets: [], total: 0 } })
 
       renderWithQuery(<TicketsPage />)
       await screen.findByText('No tickets found.')
@@ -271,7 +271,7 @@ describe('TicketsPage', () => {
     })
 
     it('sends a search to the server once typing pauses, not on every keystroke', async () => {
-      const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+      const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
       renderWithQuery(<TicketsPage />)
       await screen.findByRole('cell', { name: tickets[0].subject })
@@ -288,12 +288,14 @@ describe('TicketsPage', () => {
       expect(get.mock.lastCall?.[1]?.params).toEqual({
         sortBy: 'createdAt',
         sortOrder: 'desc',
+        page: 1,
+        pageSize: 20,
         search: 'refund',
       })
     })
 
     it('sends no new request for a search of only spaces', async () => {
-      const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+      const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
       renderWithQuery(<TicketsPage />)
       await screen.findByRole('cell', { name: tickets[0].subject })
@@ -309,8 +311,8 @@ describe('TicketsPage', () => {
 
     it('keeps the search box and its text when nothing matches', async () => {
       vi.spyOn(axios, 'get')
-        .mockResolvedValueOnce({ data: { tickets } })
-        .mockResolvedValueOnce({ data: { tickets: [] } })
+        .mockResolvedValueOnce({ data: { tickets, total: tickets.length } })
+        .mockResolvedValueOnce({ data: { tickets: [], total: 0 } })
 
       renderWithQuery(<TicketsPage />)
       await screen.findByRole('cell', { name: tickets[0].subject })
@@ -329,7 +331,7 @@ describe('TicketsPage', () => {
       ['Refund Request', 'refund_request'],
       ['Uncategorized', 'uncategorized'],
     ])('asks the server for the %s category', async (option, category) => {
-      const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+      const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
       renderWithQuery(<TicketsPage />)
       await screen.findByRole('cell', { name: tickets[0].subject })
@@ -340,7 +342,7 @@ describe('TicketsPage', () => {
     })
 
     it('combines filters with each other and with the sort', async () => {
-      const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+      const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
       renderWithQuery(<TicketsPage />)
       await screen.findByRole('cell', { name: tickets[0].subject })
@@ -353,6 +355,8 @@ describe('TicketsPage', () => {
         expect(get.mock.lastCall?.[1]?.params).toEqual({
           sortBy: 'subject',
           sortOrder: 'asc',
+          page: 1,
+          pageSize: 20,
           status: 'open',
           category: 'general_question',
         }),
@@ -360,7 +364,7 @@ describe('TicketsPage', () => {
     })
 
     it('stops sending a filter once All is chosen again', async () => {
-      const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+      const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
       renderWithQuery(<TicketsPage />)
       await screen.findByRole('cell', { name: tickets[0].subject })
@@ -373,16 +377,16 @@ describe('TicketsPage', () => {
       // Going back to a filter set that was already loaded may be served from the
       // cache, so this checks the request only if one was made.
       for (const [, config] of get.mock.calls) {
-        expect(config?.params).toEqual({ sortBy: 'createdAt', sortOrder: 'desc' })
+        expect(config?.params).toEqual({ sortBy: 'createdAt', sortOrder: 'desc', page: 1, pageSize: 20 })
       }
       expect(screen.getByRole('cell', { name: tickets[0].subject })).toBeInTheDocument()
     })
 
     it('keeps the filters on screen when nothing matches, so they can be changed', async () => {
       vi.spyOn(axios, 'get')
-        .mockResolvedValueOnce({ data: { tickets } })
-        .mockResolvedValueOnce({ data: { tickets: [] } })
-        .mockResolvedValueOnce({ data: { tickets } })
+        .mockResolvedValueOnce({ data: { tickets, total: tickets.length } })
+        .mockResolvedValueOnce({ data: { tickets: [], total: 0 } })
+        .mockResolvedValueOnce({ data: { tickets, total: tickets.length } })
 
       renderWithQuery(<TicketsPage />)
       await screen.findByRole('cell', { name: tickets[0].subject })
@@ -399,9 +403,9 @@ describe('TicketsPage', () => {
 
     it('keeps the filters on screen when a request fails, so another can be tried', async () => {
       vi.spyOn(axios, 'get')
-        .mockResolvedValueOnce({ data: { tickets } })
+        .mockResolvedValueOnce({ data: { tickets, total: tickets.length } })
         .mockRejectedValueOnce(new Error('Request failed with status code 500'))
-        .mockResolvedValueOnce({ data: { tickets } })
+        .mockResolvedValueOnce({ data: { tickets, total: tickets.length } })
 
       renderWithQuery(<TicketsPage />)
       await screen.findByRole('cell', { name: tickets[0].subject })
@@ -417,8 +421,140 @@ describe('TicketsPage', () => {
     })
   })
 
+  describe('pagination', () => {
+    const onePage = (total: number) => ({ data: { tickets, total } })
+
+    it('requests the first page and shows the total and page count', async () => {
+      const get = vi.spyOn(axios, 'get').mockResolvedValue(onePage(45))
+
+      renderWithQuery(<TicketsPage />)
+
+      expect(await screen.findByText('45 tickets')).toBeInTheDocument()
+      expect(screen.getByText('Page 1 of 3')).toBeInTheDocument()
+      expect(get.mock.lastCall?.[1]?.params).toMatchObject({ page: 1, pageSize: 20 })
+    })
+
+    it('shows no page controls while loading', () => {
+      vi.spyOn(axios, 'get').mockReturnValue(new Promise(() => {}))
+
+      renderWithQuery(<TicketsPage />)
+
+      expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument()
+    })
+
+    it('disables both buttons when everything fits on one page', async () => {
+      vi.spyOn(axios, 'get').mockResolvedValue(onePage(1))
+
+      renderWithQuery(<TicketsPage />)
+
+      expect(await screen.findByText('1 ticket')).toBeInTheDocument()
+      expect(screen.getByText('Page 1 of 1')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+    })
+
+    it('moves between pages and disables the buttons at each end', async () => {
+      const get = vi.spyOn(axios, 'get').mockResolvedValue(onePage(25))
+
+      renderWithQuery(<TicketsPage />)
+      await screen.findByText('Page 1 of 2')
+      expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+
+      expect(await screen.findByText('Page 2 of 2')).toBeInTheDocument()
+      await waitFor(() => expect(get.mock.lastCall?.[1]?.params).toMatchObject({ page: 2 }))
+      await waitFor(() => expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'false'))
+      expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Previous' }))
+
+      expect(await screen.findByText('Page 1 of 2')).toBeInTheDocument()
+    })
+
+    it('keeps the current rows on screen while the next page loads', async () => {
+      vi.spyOn(axios, 'get')
+        .mockResolvedValueOnce(onePage(25))
+        .mockReturnValueOnce(new Promise(() => {}))
+
+      renderWithQuery(<TicketsPage />)
+      await screen.findByText('Page 1 of 2')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+
+      await waitFor(() => expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'true'))
+      expect(screen.getByRole('cell', { name: tickets[0].subject })).toBeInTheDocument()
+    })
+
+    async function goToPageTwo() {
+      const get = vi.spyOn(axios, 'get').mockResolvedValue(onePage(25))
+      renderWithQuery(<TicketsPage />)
+      await screen.findByText('Page 1 of 2')
+      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+      await screen.findByText('Page 2 of 2')
+      await waitFor(() => expect(get.mock.lastCall?.[1]?.params).toMatchObject({ page: 2 }))
+      return get
+    }
+
+    it('returns to the first page when the sort changes', async () => {
+      const get = await goToPageTwo()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Subject' }))
+
+      await waitFor(() =>
+        expect(get.mock.lastCall?.[1]?.params).toMatchObject({ sortBy: 'subject', page: 1 }),
+      )
+      expect(screen.getByText('Page 1 of 2')).toBeInTheDocument()
+    })
+
+    it('returns to the first page when a filter changes', async () => {
+      const get = await goToPageTwo()
+
+      fireEvent.click(screen.getByRole('combobox', { name: 'Filter by status' }))
+      const option = await screen.findByRole('option', { name: 'Closed' })
+      fireEvent.pointerDown(option)
+      fireEvent.click(option)
+
+      await waitFor(() =>
+        expect(get.mock.lastCall?.[1]?.params).toMatchObject({ status: 'closed', page: 1 }),
+      )
+    })
+
+    it('returns to the first page in a single request when a search is entered', async () => {
+      const get = await goToPageTwo()
+      get.mockClear()
+
+      fireEvent.change(screen.getByRole('searchbox', { name: 'Search tickets' }), {
+        target: { value: 'refund' },
+      })
+
+      await waitFor(() => expect(get).toHaveBeenCalled())
+      expect(get).toHaveBeenCalledTimes(1)
+      expect(get.mock.lastCall?.[1]?.params).toMatchObject({ search: 'refund', page: 1 })
+    })
+
+    it('moves to the last page when the current page no longer exists', async () => {
+      const get = vi
+        .spyOn(axios, 'get')
+        .mockResolvedValueOnce(onePage(25))
+        .mockResolvedValueOnce({ data: { tickets: [], total: 20 } })
+        .mockResolvedValue(onePage(20))
+
+      renderWithQuery(<TicketsPage />)
+      await screen.findByText('Page 1 of 2')
+
+      // The first page was refetched with a smaller total before Next took effect.
+      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+
+      expect(await screen.findByText('Page 1 of 1')).toBeInTheDocument()
+      expect(get.mock.lastCall?.[1]?.params).toMatchObject({ page: 1 })
+      expect(screen.queryByText('No tickets found.')).not.toBeInTheDocument()
+      expect(screen.getByRole('cell', { name: tickets[0].subject })).toBeInTheDocument()
+    })
+  })
+
   it('shows an empty message and no table when there are no tickets', async () => {
-    vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets: [] } })
+    vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets: [], total: 0 } })
 
     renderWithQuery(<TicketsPage />)
 

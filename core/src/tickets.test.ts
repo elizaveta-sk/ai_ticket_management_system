@@ -3,11 +3,11 @@ import { inboundEmailSchema, ticketQuerySchema } from './tickets.ts'
 
 describe('ticketQuerySchema', () => {
   it('defaults to newest first', () => {
-    expect(ticketQuerySchema.parse({})).toEqual({ sortBy: 'createdAt', sortOrder: 'desc' })
+    expect(ticketQuerySchema.parse({})).toMatchObject({ sortBy: 'createdAt', sortOrder: 'desc' })
   })
 
   it.each(['subject', 'senderName', 'status', 'category', 'createdAt'])('accepts %s', (sortBy) => {
-    expect(ticketQuerySchema.parse({ sortBy, sortOrder: 'asc' })).toEqual({
+    expect(ticketQuerySchema.parse({ sortBy, sortOrder: 'asc' })).toMatchObject({
       sortBy,
       sortOrder: 'asc',
     })
@@ -39,6 +39,36 @@ describe('ticketQuerySchema', () => {
       expect(ticketQuerySchema.parse({ category }).category).toBe(category)
     },
   )
+
+  describe('page and pageSize', () => {
+    it('defaults to the first page of 20', () => {
+      expect(ticketQuerySchema.parse({})).toMatchObject({ page: 1, pageSize: 20 })
+    })
+
+    it('reads numbers from query string text', () => {
+      expect(ticketQuerySchema.parse({ page: '3', pageSize: '50' })).toMatchObject({
+        page: 3,
+        pageSize: 50,
+      })
+    })
+
+    it.each([
+      ['zero', { page: '0' }],
+      ['negative', { page: '-1' }],
+      ['a fraction', { page: '1.5' }],
+      ['text', { page: 'two' }],
+      ['blank', { page: '' }],
+      ['repeated', { page: ['1', '2'] }],
+      ['too large', { page: '1000001' }],
+      ['infinite', { page: 'Infinity' }],
+    ])('rejects a page that is %s', (_label, input) => {
+      expect(ticketQuerySchema.safeParse(input).success).toBe(false)
+    })
+
+    it.each(['0', '-5', '101', '2.5', 'many', ''])('rejects a pageSize of "%s"', (pageSize) => {
+      expect(ticketQuerySchema.safeParse({ pageSize }).success).toBe(false)
+    })
+  })
 
   describe('search', () => {
     it('is optional', () => {

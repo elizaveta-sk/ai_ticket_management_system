@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import type { SortingState } from '@tanstack/react-table'
+import { functionalUpdate, type PaginationState, type SortingState } from '@tanstack/react-table'
 import axios from 'axios'
+import { ticketPageSize } from 'core/tickets'
 import { useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useDebouncedValue } from '@/lib/use-debounced-value'
@@ -14,9 +15,10 @@ async function fetchTickets(
   sorting: SortingState,
   { status, category }: TicketFilterValues,
   search: string,
+  { pageIndex, pageSize }: PaginationState,
 ) {
   const [{ id, desc }] = sorting
-  const res = await axios.get<{ tickets: Ticket[] }>('/api/tickets', {
+  const res = await axios.get<{ tickets: Ticket[]; total: number }>('/api/tickets', {
     params: {
       sortBy: id,
       sortOrder: desc ? 'desc' : 'asc',
@@ -24,9 +26,11 @@ async function fetchTickets(
       status: status === 'all' ? undefined : status,
       category: category === 'all' ? undefined : category,
       search: search || undefined,
+      page: pageIndex + 1,
+      pageSize,
     },
   })
-  return res.data.tickets
+  return res.data
 }
 
 function TicketsPage() {
@@ -37,17 +41,29 @@ function TicketsPage() {
     category: 'all',
   })
   const search = useDebouncedValue(filters.search.trim(), searchDelayMs)
-  const {
-    data: tickets,
-    isPending,
-    isError,
-    isPlaceholderData,
-  } = useQuery({
-    queryKey: ['tickets', sorting, filters.status, filters.category, search],
-    queryFn: () => fetchTickets(sorting, filters, search),
-    // Keep the current rows on screen until the newly sorted or filtered ones arrive.
+
+  // A page belongs to one set of results, so other results start from the first page.
+  const resultsKey = JSON.stringify([sorting, filters.status, filters.category, search])
+  const [page, setPage] = useState({ resultsKey, pageIndex: 0 })
+  const pagination: PaginationState = {
+    pageIndex: page.resultsKey === resultsKey ? page.pageIndex : 0,
+    pageSize: ticketPageSize,
+  }
+
+  const { data, isPending, isError, isPlaceholderData } = useQuery({
+    queryKey: ['tickets', sorting, filters.status, filters.category, search, pagination.pageIndex],
+    queryFn: () => fetchTickets(sorting, filters, search, pagination),
+    // Keep the current rows on screen until the new ones arrive.
     placeholderData: keepPreviousData,
   })
+  const tickets = data?.tickets
+  const total = data?.total
+
+  // Tickets can leave these results while they are open, leaving this page empty.
+  const lastPageIndex = Math.ceil((total ?? 0) / ticketPageSize) - 1
+  if (tickets?.length === 0 && total && !isPlaceholderData && pagination.pageIndex > lastPageIndex) {
+    setPage({ resultsKey, pageIndex: lastPageIndex })
+  }
 
   return (
     <main className="mx-auto max-w-240 p-6">
@@ -58,14 +74,19 @@ function TicketsPage() {
           <AlertDescription>Could not load tickets</AlertDescription>
         </Alert>
       )}
-      {tickets?.length === 0 && <p className="text-muted-foreground">No tickets found.</p>}
-      {(isPending || (tickets && tickets.length > 0)) && (
+      {total === 0 && <p className="text-muted-foreground">No tickets found.</p>}
+      {(isPending || Boolean(total)) && (
         <TicketsTable
           tickets={tickets}
+          total={total}
           isPending={isPending}
           isUpdating={isPlaceholderData}
           sorting={sorting}
           onSortingChange={setSorting}
+          pagination={pagination}
+          onPaginationChange={(updater) =>
+            setPage({ resultsKey, pageIndex: functionalUpdate(updater, pagination).pageIndex })
+          }
         />
       )}
     </main>

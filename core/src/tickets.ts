@@ -27,9 +27,10 @@ export const inboundEmailSchema = z.object({
 export type InboundEmail = z.infer<typeof inboundEmailSchema>
 
 export const ticketSearchMaxLength = 200
+export const ticketPageSize = 20
 
 // The query string of GET /api/tickets. Only these columns can be sorted, and
-// without any parameters every ticket is returned with the newest first. Unknown
+// without any parameters the first page of tickets is returned, newest first. Unknown
 // parameters are rejected, so a mistyped filter can't silently return everything.
 export const ticketQuerySchema = z.strictObject({
   sortBy: z
@@ -50,4 +51,17 @@ export const ticketQuerySchema = z.strictObject({
     .transform((value) => removeNulls(value).trim())
     .pipe(z.string().max(ticketSearchMaxLength, 'Search is too long'))
     .optional(),
+  // Starts at 1. The upper limit keeps the database's row offset within range.
+  page: z.coerce
+    .number('Invalid page')
+    .int('Invalid page')
+    .min(1, 'Invalid page')
+    .max(1_000_000, 'Invalid page')
+    .default(1),
+  pageSize: z.coerce
+    .number('Invalid page size')
+    .int('Invalid page size')
+    .min(1, 'Invalid page size')
+    .max(100, 'Invalid page size')
+    .default(ticketPageSize),
 })

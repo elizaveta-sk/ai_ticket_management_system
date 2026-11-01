@@ -1,5 +1,6 @@
 import { ticketQuerySchema } from 'core/tickets'
 import { Router } from 'express'
+import type { Prisma } from '../generated/prisma/client.ts'
 import { prisma } from '../lib/prisma.ts'
 import { requireAuth } from '../middleware/require-auth.ts'
 
@@ -14,31 +15,38 @@ ticketsRouter.get('/tickets', requireAuth, async (req, res) => {
     return
   }
 
-  const { sortBy, sortOrder, status, category, search } = parsed.data
+  const { sortBy, sortOrder, status, category, search, page, pageSize } = parsed.data
   // contains becomes a LIKE pattern, so % and _ would otherwise act as wildcards.
   const contains = {
     contains: search?.replace(/[\\%_]/g, '\\$&'),
     mode: 'insensitive',
   } as const
-  const tickets = await prisma.ticket.findMany({
-    where: {
-      status,
-      category: category === 'uncategorized' ? null : category,
-      // Only what the table shows, so every result visibly matches the search.
-      OR: search
-        ? [{ subject: contains }, { senderName: contains }, { senderEmail: contains }]
-        : undefined,
-    },
-    select: {
-      id: true,
-      subject: true,
-      senderName: true,
-      senderEmail: true,
-      status: true,
-      category: true,
-      createdAt: true,
-    },
-    orderBy: [{ [sortBy]: sortOrder }, { id: sortOrder }],
-  })
-  res.json({ tickets })
+  const where: Prisma.TicketWhereInput = {
+    status,
+    category: category === 'uncategorized' ? null : category,
+    // Only what the table shows, so every result visibly matches the search.
+    OR: search
+      ? [{ subject: contains }, { senderName: contains }, { senderEmail: contains }]
+      : undefined,
+  }
+  // In one transaction, so the total always describes the same data as the page.
+  const [tickets, total] = await prisma.$transaction([
+    prisma.ticket.findMany({
+      where,
+      select: {
+        id: true,
+        subject: true,
+        senderName: true,
+        senderEmail: true,
+        status: true,
+        category: true,
+        createdAt: true,
+      },
+      orderBy: [{ [sortBy]: sortOrder }, { id: sortOrder }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.ticket.count({ where }),
+  ])
+  res.json({ tickets, total })
 })
