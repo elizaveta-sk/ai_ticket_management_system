@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
-import { createReplySchema, type CreateReplyInput } from 'core/tickets'
+import { createReplySchema, type CreateReplyInput, type TicketReply } from 'core/tickets'
 import { Controller, useForm } from 'react-hook-form'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -10,14 +10,6 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Textarea } from '@/components/ui/textarea'
 import { serverErrorMessage } from '../lib/server-error-message.ts'
-
-export type TicketReply = {
-  id: number
-  body: string
-  senderType: 'agent' | 'customer'
-  createdAt: string
-  author: { name: string } | null
-}
 
 function ReplyForm({ ticketId }: { ticketId: number }) {
   const queryClient = useQueryClient()

@@ -49,6 +49,12 @@ function notFound() {
   })
 }
 
+function expectNoTicketActions() {
+  expect(screen.queryByRole('region', { name: 'Replies' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('textbox', { name: 'Your reply' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+}
+
 describe('TicketDetailPage', () => {
   it('shows a skeleton and the way back while loading', () => {
     vi.spyOn(axios, 'get').mockReturnValue(new Promise(() => {}))
@@ -87,14 +93,40 @@ describe('TicketDetailPage', () => {
     expect(body).toHaveClass('whitespace-pre-wrap')
   })
 
-  it('shows markup in a message as text', async () => {
-    const body = '<img src=x onerror=alert(1)> hello'
-    mockApi({ ...ticket, body })
+  it('removes markup from everything the sender wrote', async () => {
+    const markup = '<img src=x onerror=alert(1)>'
+    mockApi({
+      ...ticket,
+      subject: `${markup}Refund`,
+      senderName: `${markup}Grace`,
+      body: `${markup}Please help`,
+      replies: [
+        {
+          id: 1,
+          body: `${markup}Thank you`,
+          senderType: 'customer',
+          createdAt: '2026-03-03T10:00:00.000Z',
+          author: null,
+        },
+      ],
+    })
 
     renderPage()
 
-    expect(await screen.findByText(body)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Refund' })).toBeInTheDocument()
+    expect(screen.getByText('Please help')).toBeInTheDocument()
+    expect(screen.getByText('Thank you')).toBeInTheDocument()
+    expect(screen.getAllByText('Grace')).toHaveLength(2)
+    expect(screen.queryByText(/onerror/)).not.toBeInTheDocument()
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
+  })
+
+  it('says the email has no message when only markup was sent', async () => {
+    mockApi({ ...ticket, body: '<script>alert(1)</script>' })
+
+    renderPage()
+
+    expect(await screen.findByText('This email has no message.')).toBeInTheDocument()
   })
 
   it('shows Uncategorized for a ticket without a category', async () => {
@@ -141,176 +173,143 @@ describe('TicketDetailPage', () => {
     expect(screen.queryByText('Ticket not found.')).not.toBeInTheDocument()
   })
 
+  it('offers no replies or controls while loading', () => {
+    vi.spyOn(axios, 'get').mockReturnValue(new Promise(() => {}))
+
+    renderPage()
+
+    expectNoTicketActions()
+  })
+
+  it('offers no replies or controls when the ticket does not exist', async () => {
+    vi.spyOn(axios, 'get').mockRejectedValue(notFound())
+
+    renderPage('999')
+
+    await screen.findByText('Ticket not found.')
+    expectNoTicketActions()
+  })
+
+  it('offers no replies or controls when the request fails', async () => {
+    vi.spyOn(axios, 'get').mockRejectedValue(new Error('Request failed with status code 500'))
+
+    renderPage()
+
+    await screen.findByRole('alert')
+    expectNoTicketActions()
+  })
+
+  // How the thread itself looks and behaves is covered in TicketReplies.test.tsx.
   describe('replies', () => {
-    const firstReply = {
+    const reply = {
       id: 1,
-      body: 'Hi Grace,\n\nWe are looking into it.',
-      senderType: 'agent',
-      createdAt: '2026-03-02T13:00:00.000Z',
-      author: { name: 'Ada Agent' },
-    }
-    const secondReply = {
-      id: 2,
       body: 'Your refund is on its way.',
       senderType: 'agent',
       createdAt: '2026-03-03T09:00:00.000Z',
-      author: { name: 'Bob Agent' },
+      author: { name: 'Ada Agent' },
     }
     const replyBox = () => screen.getByRole('textbox', { name: 'Your reply' })
-    const sendButton = () => screen.getByRole('button', { name: 'Send reply' })
 
-    async function typeReply(text: string) {
+    async function sendReply(text: string) {
       await screen.findByRole('heading', { name: ticket.subject })
       fireEvent.change(replyBox(), { target: { value: text } })
+      fireEvent.click(screen.getByRole('button', { name: 'Send reply' }))
     }
 
-    it('says so when there are no replies', async () => {
-      mockApi(ticket)
+    it('shows the ticket replies below the message', async () => {
+      mockApi({ ...ticket, replies: [reply] })
 
       renderPage()
 
-      expect(await screen.findByText('No replies yet.')).toBeInTheDocument()
-      expect(replyBox()).toBeInTheDocument()
+      const message = await screen.findByText(/Please refund my course/)
+      const replyText = screen.getByText(reply.body)
+      expect(
+        message.compareDocumentPosition(replyText) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
     })
 
-    it('shows each reply in order with its author and time', async () => {
-      mockApi({ ...ticket, replies: [firstReply, secondReply] })
+    it('shows a customer reply under the name of the ticket sender', async () => {
+      const customerReply = { ...reply, senderType: 'customer', author: null }
+      mockApi({ ...ticket, replies: [customerReply] })
 
       renderPage()
 
-      const items = await screen.findAllByRole('listitem')
-      expect(items).toHaveLength(2)
-      expect(items[0]).toHaveTextContent('Ada Agent')
-      expect(items[0]).toHaveTextContent(new Date(firstReply.createdAt).toLocaleString())
-      expect(items[1]).toHaveTextContent('Your refund is on its way.')
-      expect(screen.queryByText('No replies yet.')).not.toBeInTheDocument()
+      expect(await screen.findByRole('listitem')).toHaveTextContent('Grace Student')
     })
 
-    it('labels agent replies, and shows customer replies under the sender name', async () => {
-      const customerReply = {
-        id: 3,
-        body: 'Thank you!',
-        senderType: 'customer',
-        createdAt: '2026-03-03T10:00:00.000Z',
-        author: null,
-      }
-      mockApi({ ...ticket, replies: [firstReply, customerReply] })
-
-      renderPage()
-
-      const items = await screen.findAllByRole('listitem')
-      expect(items[0]).toHaveTextContent('Ada Agent')
-      expect(items[0]).toHaveTextContent('Agent')
-      expect(items[0]).not.toHaveTextContent('Customer')
-      expect(items[1]).toHaveTextContent('Grace Student')
-      expect(items[1]).toHaveTextContent('Customer')
-    })
-
-    it('keeps the line breaks in a reply', async () => {
-      mockApi({ ...ticket, replies: [firstReply] })
-
-      renderPage()
-
-      const body = await screen.findByText(/We are looking into it/)
-      expect(body.textContent).toBe(firstReply.body)
-      expect(body).toHaveClass('whitespace-pre-wrap')
-    })
-
-    it('shows markup in a reply as text', async () => {
-      const body = '<img src=x onerror=alert(1)> hello'
-      mockApi({ ...ticket, replies: [{ ...firstReply, body }] })
-
-      renderPage()
-
-      expect(await screen.findByText(body)).toBeInTheDocument()
-      expect(screen.queryByRole('img')).not.toBeInTheDocument()
-    })
-
-    it('sends the trimmed reply, shows it and clears the form', async () => {
-      mockApi(ticket, { ...ticket, replies: [secondReply] })
+    it('shows a new reply once sent, by loading the ticket again', async () => {
+      const get = mockApi(ticket, { ...ticket, replies: [reply] })
       const post = vi.spyOn(axios, 'post').mockResolvedValue({ data: {} })
 
       renderPage()
-      await typeReply('  Your refund is on its way.  ')
-      fireEvent.click(sendButton())
+      await sendReply(reply.body)
 
-      expect(await screen.findByText(secondReply.body)).toBeInTheDocument()
-      expect(post).toHaveBeenCalledWith('/api/tickets/2/replies', { body: secondReply.body })
+      expect(await screen.findByText(reply.body)).toBeInTheDocument()
+      expect(post).toHaveBeenCalledWith('/api/tickets/2/replies', { body: reply.body })
+      expect(get.mock.calls.filter(([url]) => url === '/api/tickets/2')).toHaveLength(2)
       await waitFor(() => expect(replyBox()).toHaveValue(''))
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.queryByText('No replies yet.')).not.toBeInTheDocument()
     })
 
-    it.each([['an empty reply', ''], ['a reply of only whitespace', ' \n ']])(
-      'does not send %s',
-      async (_label, text) => {
-        mockApi(ticket)
-        const post = vi.spyOn(axios, 'post')
-
-        renderPage()
-        await typeReply(text)
-        fireEvent.click(sendButton())
-
-        expect(await screen.findByText('Reply is required')).toBeInTheDocument()
-        expect(post).not.toHaveBeenCalled()
-      },
-    )
-
-    it('does not send a reply that is too long', async () => {
-      mockApi(ticket)
-      const post = vi.spyOn(axios, 'post')
+    it('keeps the reply in the box until the refreshed thread arrives', async () => {
+      let ticketRequests = 0
+      vi.spyOn(axios, 'get').mockImplementation((url) => {
+        if (url === '/api/agents') return Promise.resolve({ data: { agents } })
+        ticketRequests += 1
+        return ticketRequests === 1 ? Promise.resolve({ data: { ticket } }) : new Promise(() => {})
+      })
+      vi.spyOn(axios, 'post').mockResolvedValue({ data: {} })
 
       renderPage()
-      await typeReply('a'.repeat(10_001))
-      fireEvent.click(sendButton())
+      await sendReply('Hello')
 
-      expect(await screen.findByText('Reply must be at most 10000 characters')).toBeInTheDocument()
-      expect(post).not.toHaveBeenCalled()
-    })
-
-    it('blocks a second send and further typing while the reply sends', async () => {
-      mockApi(ticket)
-      vi.spyOn(axios, 'post').mockReturnValue(new Promise(() => {}))
-
-      renderPage()
-      await typeReply('Hello')
-      fireEvent.click(sendButton())
-
-      expect(await screen.findByRole('button', { name: 'Sending...' })).toBeDisabled()
-      expect(replyBox()).toHaveAttribute('readonly')
-    })
-
-    it('shows the server error and keeps the draft when sending fails', async () => {
-      mockApi(ticket)
-      vi.spyOn(axios, 'post').mockRejectedValue(
-        Object.assign(new Error('Request failed with status code 404'), {
-          isAxiosError: true,
-          response: { status: 404, data: { error: 'Ticket not found' } },
-        }),
-      )
-
-      renderPage()
-      await typeReply('Hello')
-      fireEvent.click(sendButton())
-
-      expect(await screen.findByRole('alert')).toHaveTextContent('Ticket not found')
+      await waitFor(() => expect(ticketRequests).toBe(2))
       expect(replyBox()).toHaveValue('Hello')
-      expect(sendButton()).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'Sending...' })).toBeDisabled()
     })
 
-    it('shows a general message when sending fails without a server message', async () => {
-      mockApi(ticket)
-      vi.spyOn(axios, 'post').mockRejectedValue(new Error('Network Error'))
+    it('keeps the ticket on screen and shows an error if the refresh fails', async () => {
+      let ticketRequests = 0
+      vi.spyOn(axios, 'get').mockImplementation(async (url) => {
+        if (url === '/api/agents') return { data: { agents } }
+        ticketRequests += 1
+        if (ticketRequests > 1) throw new Error('Request failed with status code 500')
+        return { data: { ticket } }
+      })
+      vi.spyOn(axios, 'post').mockResolvedValue({ data: {} })
 
       renderPage()
-      await typeReply('Hello')
-      fireEvent.click(sendButton())
+      await sendReply('Hello')
 
-      expect(await screen.findByRole('alert')).toHaveTextContent('Could not send reply')
+      expect(await screen.findByRole('alert')).toHaveTextContent('Could not load ticket')
+      expect(screen.getByRole('heading', { name: ticket.subject })).toBeInTheDocument()
+    })
+
+    it('keeps an unsent draft when the ticket is updated from the controls', async () => {
+      const get = mockApi(ticket, { ...ticket, status: 'closed' })
+      vi.spyOn(axios, 'patch').mockResolvedValue({ data: {} })
+
+      renderPage()
+      await screen.findByRole('heading', { name: ticket.subject })
+      fireEvent.change(replyBox(), { target: { value: 'Still writing' } })
+      const status = screen.getByRole('combobox', { name: 'Status' })
+      fireEvent.click(status)
+      const closed = await screen.findByRole('option', { name: 'Closed' })
+      // Base UI ignores a mouse click on an option unless the press started on it.
+      fireEvent.pointerDown(closed)
+      fireEvent.click(closed)
+
+      // The control shows the choice while saving, so wait for the reloaded ticket instead.
+      await waitFor(() =>
+        expect(get.mock.calls.filter(([url]) => url === '/api/tickets/2')).toHaveLength(2),
+      )
+      await waitFor(() => expect(screen.getByRole('combobox', { name: 'Status' })).toBeEnabled())
+      expect(replyBox()).toHaveValue('Still writing')
     })
   })
 
   describe('assignee', () => {
-    const trigger =() => screen.getByRole('combobox', { name: 'Assigned To' })
+    const trigger = () => screen.getByRole('combobox', { name: 'Assigned To' })
 
     async function openChoices() {
       await waitFor(() => expect(trigger()).toBeEnabled())

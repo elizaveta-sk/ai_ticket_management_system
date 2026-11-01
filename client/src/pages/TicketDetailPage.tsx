@@ -1,18 +1,25 @@
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
+import type { TicketDetail } from 'core/tickets'
 import { ArrowLeft } from 'lucide-react'
 import { Link, useParams } from 'react-router'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import TicketControls, { type Assignee } from '../components/TicketControls.tsx'
-import TicketReplies, { type TicketReply } from '../components/TicketReplies.tsx'
-import type { Ticket } from '../components/TicketsTable.tsx'
+import TicketControls from '../components/TicketControls.tsx'
+import TicketReplies from '../components/TicketReplies.tsx'
+import { sanitizeText } from '../lib/sanitize-text.ts'
 
-type TicketDetail = Ticket & {
-  body: string
-  assignedTo: Assignee | null
-  replies: TicketReply[]
+// Only for display: the original text stays unchanged in the database.
+function sanitizeTicket(ticket: TicketDetail): TicketDetail {
+  return {
+    ...ticket,
+    subject: sanitizeText(ticket.subject),
+    senderName: sanitizeText(ticket.senderName),
+    senderEmail: sanitizeText(ticket.senderEmail),
+    body: sanitizeText(ticket.body),
+    replies: ticket.replies.map((reply) => ({ ...reply, body: sanitizeText(reply.body) })),
+  }
 }
 
 // Resolves to null when there is no such ticket, because retrying can't help then.
@@ -21,7 +28,7 @@ async function fetchTicket(id: string) {
     const res = await axios.get<{ ticket: TicketDetail }>(
       `/api/tickets/${encodeURIComponent(id)}`,
     )
-    return res.data.ticket
+    return sanitizeTicket(res.data.ticket)
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 404) return null
     throw error

@@ -1,12 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
-import type { TicketCategory, TicketStatus } from 'core/tickets'
+import type { TicketAssignee, TicketCategory, TicketStatus } from 'core/tickets'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { categoryLabels, statusLabels, uncategorizedLabel } from '@/lib/ticket-labels'
 import { serverErrorMessage } from '../lib/server-error-message.ts'
-
-export type Assignee = { id: string; name: string }
 
 type TicketChanges = {
   status?: TicketStatus
@@ -31,7 +29,7 @@ const categoryItems: { value: string; label: string }[] = [
 ]
 
 async function fetchAgents() {
-  const res = await axios.get<{ agents: Assignee[] }>('/api/agents')
+  const res = await axios.get<{ agents: TicketAssignee[] }>('/api/agents')
   return res.data.agents
 }
 
@@ -83,7 +81,7 @@ function TicketControls({
   ticketId: number
   status: TicketStatus
   category: TicketCategory | null
-  assignedTo: Assignee | null
+  assignedTo: TicketAssignee | null
 }) {
   const queryClient = useQueryClient()
   const agents = useQuery({ queryKey: ['agents'], queryFn: fetchAgents })

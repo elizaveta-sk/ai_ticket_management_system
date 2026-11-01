@@ -61,6 +61,8 @@ model TicketReply {
   ticketId  Int
   ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   body       String
+  // The HTML version of the body, if there is one. Untrusted: sanitize before rendering.
+  bodyHtml   String?
   senderType SenderType
   // The agent who wrote it. Empty on customer replies, which come from the ticket's sender.
   // Users are soft deleted, so a former agent's replies keep their author.

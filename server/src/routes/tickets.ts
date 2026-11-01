@@ -12,6 +12,7 @@ import { requireAuth } from '../middleware/require-auth.ts'
 const replySelect = {
   id: true,
   body: true,
+  bodyHtml: true,
   senderType: true,
   createdAt: true,
   author: { select: { name: true } },

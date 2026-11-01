@@ -84,12 +84,6 @@ test.describe('POST /api/webhooks/inbound-email', () => {
     expect(retry.status()).toBe(201)
   })
 
-
-  test('accepts a text of about 500kb, above the app-wide 100kb limit', async ({ request }) => {
-    const res = await send(request, validEmail({ text: 'a'.repeat(500 * 1024) }))
-    expect(res.status()).toBe(201)
-  })
-
   test('returns 413 for a body over 1mb', async ({ request }) => {
     const res = await send(request, validEmail({ text: 'a'.repeat(1024 * 1024 + 1024) }))
     expect(res.status()).toBe(413)

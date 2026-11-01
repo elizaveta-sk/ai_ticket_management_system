@@ -1,12 +1,12 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { functionalUpdate, type PaginationState, type SortingState } from '@tanstack/react-table'
 import axios from 'axios'
-import { ticketPageSize } from 'core/tickets'
+import { ticketPageSize, type Ticket } from 'core/tickets'
 import { useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useDebouncedValue } from '@/lib/use-debounced-value'
 import TicketFilters, { type TicketFilterValues } from '../components/TicketFilters.tsx'
-import TicketsTable, { type Ticket } from '../components/TicketsTable.tsx'
+import TicketsTable from '../components/TicketsTable.tsx'
 
 // Waits for a pause in typing, rather than sending a request per keystroke.
 const searchDelayMs = 300

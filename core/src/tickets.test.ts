@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   createReplySchema,
   inboundEmailSchema,
+  ticketBodyMaxLength,
+  ticketEmailMaxLength,
   ticketIdSchema,
   ticketQuerySchema,
   ticketReplyMaxLength,
@@ -200,6 +202,33 @@ function firstError(input: unknown) {
 describe('inboundEmailSchema', () => {
   it('accepts a valid email and keeps its values', () => {
     expect(inboundEmailSchema.parse(validEmail)).toEqual(validEmail)
+  })
+
+  describe('length limits', () => {
+    it('accepts a from address of 100 characters and rejects 101', () => {
+      const ofLength = (length: number) => ({
+        ...validEmail,
+        from: `${'a'.repeat(length - '@example.com'.length)}@example.com`,
+      })
+
+      expect(firstError(ofLength(ticketEmailMaxLength))).toBeUndefined()
+      expect(firstError(ofLength(ticketEmailMaxLength + 1))).toBe(
+        'from must be at most 100 characters',
+      )
+    })
+
+    it('accepts a text of 20000 characters and rejects 20001', () => {
+      const ofLength = (length: number) => ({ ...validEmail, text: 'a'.repeat(length) })
+
+      expect(firstError(ofLength(ticketBodyMaxLength))).toBeUndefined()
+      expect(firstError(ofLength(ticketBodyMaxLength + 1))).toBe(
+        'text must be at most 20000 characters',
+      )
+    })
+
+    it('limits replies to the same length as a ticket body', () => {
+      expect(ticketReplyMaxLength).toBe(20000)
+    })
   })
 
   describe('messageId', () => {

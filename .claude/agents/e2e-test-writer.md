@@ -19,6 +19,7 @@ You write Playwright end-to-end tests for this helpdesk application. It is a Bun
 
 ## Writing tests
 
+- Only write a test that is absolutely necessary: it must check something unit and component tests cannot, because it needs the real server, database or browser session, and no existing unit or component test may already cover it. Check the `*.test.ts(x)` files first. Don't test form validation, loading, error or empty states, or display details here. List anything you left out for this reason in your report.
 - Name test files `e2e/<feature>.spec.ts` and import from `@playwright/test`.
 - Use relative URLs such as `page.goto('/login')`. `baseURL` is already set.
 - Prefer `getByRole`, `getByLabel` and `getByText`. Use web-first assertions such as `await expect(locator).toBeVisible()`, and never use fixed waits such as `waitForTimeout`.

@@ -47,6 +47,7 @@ Better Auth with email and password, using database-backed sessions through the 
 
 No email provider is set up yet. `POST /api/webhooks/inbound-email` (`server/src/routes/webhooks.ts`) takes a provider-neutral JSON body, validated by `inboundEmailSchema` in `core/src/tickets.ts`, and creates a ticket with status `open` and no category (`category` is null until the ticket is classified). `fromName` is required, so an email without one gets a 400. When a provider is chosen, map its webhook format to that schema and replace the secret check with its signature check.
 
+- **Length limits:** `from` is at most 100 characters and `text` at most 20,000 (`inboundEmailSchema`); longer values get a 400 and no ticket is created. Replies share the 20,000 limit.
 - **Authentication:** the request must send `INBOUND_EMAIL_SECRET` in the `x-webhook-secret` header (`server/src/middleware/require-webhook-secret.ts`). If the secret is missing or is a placeholder, the endpoint returns 503 rather than accepting anything.
 - **Duplicates:** `messageId` is unique, so a repeated delivery returns 200 with the existing ticket instead of creating another.
 - **Mounting:** the router stays before `express.json()` in `app.ts` because it sets its own 1mb body limit.
@@ -70,6 +71,8 @@ Write these in the main session, using Vitest. Prefer them over e2e tests for an
 - **Running:** use `bun --filter client test`. Plain `bun test` starts Bun's own runner instead of Vitest.
 
 ### End-to-end tests
+
+Only keep an end-to-end test if it is absolutely necessary: it checks functionality that unit and component tests cannot, because it needs the real server, database or browser session (such as access rules, persistence, or database constraints), and no unit or component test already covers it. Anything else belongs in a unit or component test.
 
 Use the `e2e-test-writer` subagent whenever end-to-end tests need to be added, updated, fixed or run. Don't write Playwright tests in the main session. Tell the subagent which feature or behaviour to cover, and what changed if it relates to recent work. The subagent starts without this conversation's context.
 

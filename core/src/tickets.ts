@@ -4,15 +4,57 @@ export type TicketStatus = 'open' | 'resolved' | 'closed'
 
 export type TicketCategory = 'general_question' | 'technical_question' | 'refund_request'
 
+export type ReplySenderType = 'agent' | 'customer'
+
+// The shapes the tickets API returns as JSON, so dates are ISO strings.
+export interface Ticket {
+  id: number
+  subject: string
+  senderName: string
+  senderEmail: string
+  status: TicketStatus
+  category: TicketCategory | null
+  createdAt: string
+}
+
+export interface TicketAssignee {
+  id: string
+  name: string
+}
+
+export interface TicketReply {
+  id: number
+  body: string
+  // Untrusted HTML, so it must be sanitized before it is ever rendered as HTML.
+  bodyHtml: string | null
+  senderType: ReplySenderType
+  createdAt: string
+  // Empty on customer replies, which come from the ticket's sender.
+  author: { name: string } | null
+}
+
+// A single ticket: the list's fields plus what only its own page shows.
+export interface TicketDetail extends Ticket {
+  body: string
+  assignedTo: TicketAssignee | null
+  replies: TicketReply[]
+}
+
 // PostgreSQL text columns can't store NUL characters, which can appear in email.
 const removeNulls = (value: string) => value.replaceAll('\0', '')
+
+export const ticketEmailMaxLength = 100
+export const ticketBodyMaxLength = 20_000
 
 // The provider-neutral shape of an inbound email. An email provider's webhook
 // format gets mapped to this when one is chosen.
 export const inboundEmailSchema = z.object({
   // 512 keeps the value within the size PostgreSQL allows for a unique index.
   messageId: z.string().trim().min(1, 'messageId is required').max(512, 'messageId is too long'),
-  from: z.email('from must be a valid email address').toLowerCase(),
+  from: z
+    .email('from must be a valid email address')
+    .max(ticketEmailMaxLength, `from must be at most ${ticketEmailMaxLength} characters`)
+    .toLowerCase(),
   fromName: z
     .string('fromName is required')
     .transform((value) => removeNulls(value).trim())
@@ -21,7 +63,11 @@ export const inboundEmailSchema = z.object({
     .string()
     .default('')
     .transform((value) => removeNulls(value).trim() || '(no subject)'),
-  text: z.string().default('').transform(removeNulls),
+  text: z
+    .string()
+    .default('')
+    .transform(removeNulls)
+    .pipe(z.string().max(ticketBodyMaxLength, `text must be at most ${ticketBodyMaxLength} characters`)),
 })
 
 export type InboundEmail = z.infer<typeof inboundEmailSchema>
@@ -50,7 +96,7 @@ export const updateTicketSchema = z
   })
   .refine((changes) => Object.keys(changes).length > 0, 'Nothing to update')
 
-export const ticketReplyMaxLength = 10_000
+export const ticketReplyMaxLength = ticketBodyMaxLength
 
 // The body of POST /api/tickets/:id/replies. The author comes from the session.
 export const createReplySchema = z.strictObject({

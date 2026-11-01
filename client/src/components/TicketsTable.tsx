@@ -8,7 +8,7 @@ import {
   type PaginationState,
   type SortingState,
 } from '@tanstack/react-table'
-import type { TicketCategory, TicketStatus } from 'core/tickets'
+import type { Ticket } from 'core/tickets'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
@@ -22,16 +22,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { TicketCategoryText, TicketStatusBadge } from './TicketFields.tsx'
-
-export type Ticket = {
-  id: number
-  subject: string
-  senderName: string
-  senderEmail: string
-  status: TicketStatus
-  category: TicketCategory | null
-  createdAt: string
-}
 
 const features = tableFeatures({ rowSortingFeature, rowPaginationFeature })
 const column = createColumnHelper<typeof features, Ticket>()
