@@ -36,9 +36,9 @@
 
 ## Phase 5: AI Features
 
-- [ ] Set up Claude API integration
-- [ ] Implement auto-classification endpoint (categorize incoming tickets)
-- [ ] Implement AI summary endpoint (generate ticket summary)
+- [x] Set up ChatGPT API integration
+- [x] Implement auto-classification (categorize incoming tickets in the background, using OpenAI `gpt-5-nano` through the AI SDK)
+- [x] Implement AI summary endpoint (generate ticket summary, using OpenAI `gpt-5-nano` through the AI SDK)
 - [ ] Implement AI suggested reply endpoint
 - [x] Add a Polish button that improves an agent's draft reply (OpenAI `gpt-5-nano` through the AI SDK)
 - [ ] Build knowledge base structure and seed with initial content

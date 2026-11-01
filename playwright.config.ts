@@ -45,6 +45,9 @@ export default defineConfig({
         BETTER_AUTH_URL: serverUrl,
         CLIENT_URL: clientUrl,
         INBOUND_EMAIL_SECRET: process.env.INBOUND_EMAIL_SECRET!,
+        // Bun would otherwise load the real key from server/.env, and every test email
+        // would make a paid call to classify it.
+        OPENAI_API_KEY: '',
       },
     },
     {

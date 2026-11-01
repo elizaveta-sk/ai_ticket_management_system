@@ -1,6 +1,6 @@
 import { generateText } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { isPolishConfigured, polishReply } from './polish-reply.ts'
+import { polishReply } from './polish-reply.ts'
 
 vi.mock('ai', async (importOriginal) => ({
   ...(await importOriginal<typeof import('ai')>()),
@@ -14,20 +14,7 @@ function modelReturns(parts: { greeting: string; message: string; signOff: strin
 }
 
 afterEach(() => {
-  vi.unstubAllEnvs()
   vi.mocked(generateText).mockReset()
-})
-
-describe('isPolishConfigured', () => {
-  it.each([
-    ['missing', '', false],
-    ['the placeholder from .env.example', 'YOUR_OPENAI_API_KEY', false],
-    ['a real key', 'sk-test', true],
-  ])('with a key that is %s', (_label, key, expected) => {
-    vi.stubEnv('OPENAI_API_KEY', key)
-
-    expect(isPolishConfigured()).toBe(expected)
-  })
 })
 
 describe('polishReply', () => {

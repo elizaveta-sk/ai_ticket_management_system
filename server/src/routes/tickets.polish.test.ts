@@ -3,7 +3,8 @@ import type { AddressInfo } from 'node:net'
 import { ticketReplyMaxLength } from 'core/tickets'
 import express, { type NextFunction, type Request, type Response } from 'express'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { isPolishConfigured, polishReply } from '../lib/polish-reply.ts'
+import { isOpenAIConfigured } from '../lib/openai.ts'
+import { polishReply } from '../lib/polish-reply.ts'
 import { prisma } from '../lib/prisma.ts'
 import { ticketsRouter } from './tickets.ts'
 
@@ -12,10 +13,8 @@ const auth = vi.hoisted(() => ({ signedIn: true }))
 vi.mock('../lib/prisma.ts', () => ({
   prisma: { ticket: { findUnique: vi.fn() } },
 }))
-vi.mock('../lib/polish-reply.ts', () => ({
-  isPolishConfigured: vi.fn(),
-  polishReply: vi.fn(),
-}))
+vi.mock('../lib/openai.ts', () => ({ isOpenAIConfigured: vi.fn() }))
+vi.mock('../lib/polish-reply.ts', () => ({ polishReply: vi.fn() }))
 vi.mock('../middleware/require-auth.ts', () => ({
   requireAuth: (req: Request, res: Response, next: NextFunction) => {
     if (!auth.signedIn) {
@@ -57,7 +56,7 @@ afterAll(() => {
 beforeEach(() => {
   userNumber++
   auth.signedIn = true
-  vi.mocked(isPolishConfigured).mockReturnValue(true)
+  vi.mocked(isOpenAIConfigured).mockReturnValue(true)
   vi.mocked(prisma.ticket.findUnique).mockResolvedValue({ senderName: 'Grace Student' } as never)
   vi.mocked(polishReply).mockResolvedValue('Hi Grace,\n\nDone.\n\nThanks,\nAda Agent')
 })
@@ -131,7 +130,7 @@ describe('POST /api/tickets/:id/replies/polish', () => {
   })
 
   it('answers 503 when no API key is configured, without calling the model', async () => {
-    vi.mocked(isPolishConfigured).mockReturnValue(false)
+    vi.mocked(isOpenAIConfigured).mockReturnValue(false)
 
     const res = await polish({ body: 'done' })
 

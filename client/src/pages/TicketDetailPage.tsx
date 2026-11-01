@@ -4,9 +4,9 @@ import type { TicketDetail } from 'core/tickets'
 import { ArrowLeft } from 'lucide-react'
 import { Link, useParams } from 'react-router'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import TicketControls from '../components/TicketControls.tsx'
+import TicketMessage from '../components/TicketMessage.tsx'
 import TicketReplies from '../components/TicketReplies.tsx'
 import { sanitizeText } from '../lib/sanitize-text.ts'
 
@@ -79,16 +79,8 @@ function TicketDetailPage() {
                 {new Date(ticket.createdAt).toLocaleString()}
               </div>
             </div>
-            <Card>
-              <CardContent>
-                {ticket.body ? (
-                  // Emails are plain text, so keep their line breaks.
-                  <p className="wrap-anywhere whitespace-pre-wrap">{ticket.body}</p>
-                ) : (
-                  <p className="text-muted-foreground">This email has no message.</p>
-                )}
-              </CardContent>
-            </Card>
+            {/* Keyed so a summary never carries over to another ticket. */}
+            <TicketMessage key={ticket.id} ticketId={ticket.id} body={ticket.body} />
             <TicketReplies
               ticketId={ticket.id}
               senderName={ticket.senderName}

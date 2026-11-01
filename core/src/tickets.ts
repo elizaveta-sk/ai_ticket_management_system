@@ -4,6 +4,12 @@ export type TicketStatus = 'open' | 'resolved' | 'closed'
 
 export type TicketCategory = 'general_question' | 'technical_question' | 'refund_request'
 
+export const ticketCategories = [
+  'general_question',
+  'technical_question',
+  'refund_request',
+] as const satisfies readonly TicketCategory[]
+
 export type ReplySenderType = 'agent' | 'customer'
 
 // The shapes the tickets API returns as JSON, so dates are ISO strings.

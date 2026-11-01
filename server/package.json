@@ -11,6 +11,7 @@
     "db:migrate": "bunx --bun prisma migrate dev",
     "db:seed": "bun prisma/seed.ts",
     "db:seed:tickets": "bun prisma/seed-demo-tickets.ts",
+    "db:seed:replies": "bun prisma/seed-ticket-replies.ts",
     "db:studio": "bunx --bun prisma studio",
     "test": "vitest run"
   },

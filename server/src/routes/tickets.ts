@@ -6,8 +6,10 @@ import {
 } from 'core/tickets'
 import { Router } from 'express'
 import { Prisma, Role, SenderType } from '../generated/prisma/client.ts'
-import { isPolishConfigured, polishReply } from '../lib/polish-reply.ts'
+import { isOpenAIConfigured } from '../lib/openai.ts'
+import { polishReply } from '../lib/polish-reply.ts'
 import { prisma } from '../lib/prisma.ts'
+import { summarizeTicket } from '../lib/summarize-ticket.ts'
 import { rateLimitPerUser } from '../middleware/rate-limit-per-user.ts'
 import { requireAuth } from '../middleware/require-auth.ts'
 
@@ -152,7 +154,7 @@ ticketsRouter.post('/tickets/:id/replies/polish', requireAuth, polishRateLimit, 
     res.status(400).json({ error: parsed.error.issues[0].message })
     return
   }
-  if (!isPolishConfigured()) {
+  if (!isOpenAIConfigured()) {
     res.status(503).json({ error: 'Reply polishing is not configured' })
     return
   }
@@ -183,6 +185,53 @@ ticketsRouter.post('/tickets/:id/replies/polish', requireAuth, polishRateLimit, 
     console.error('Could not polish a reply:', error instanceof Error ? error.message : 'unknown error')
   }
   res.status(502).json({ error: 'Could not polish the reply' })
+})
+
+const summaryRateLimit = rateLimitPerUser(10, 60_000)
+
+// Summarizes the ticket and its replies. Generated on every request and never saved, so
+// it always reflects the thread as it stands.
+ticketsRouter.post('/tickets/:id/summary', requireAuth, summaryRateLimit, async (req, res) => {
+  const id = ticketIdSchema.safeParse(req.params.id)
+  if (!id.success) {
+    res.status(404).json({ error: 'Ticket not found' })
+    return
+  }
+  if (!isOpenAIConfigured()) {
+    res.status(503).json({ error: 'Ticket summaries are not configured' })
+    return
+  }
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: id.data },
+    select: {
+      subject: true,
+      body: true,
+      replies: {
+        select: { senderType: true, body: true },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      },
+    },
+  })
+  if (!ticket) {
+    res.status(404).json({ error: 'Ticket not found' })
+    return
+  }
+
+  try {
+    const summary = await summarizeTicket(ticket)
+    if (summary) {
+      res.json({ summary })
+      return
+    }
+    console.error('Could not summarize a ticket: the model returned an unusable summary')
+  } catch (error) {
+    // Only the message, because the full error includes the ticket.
+    console.error(
+      'Could not summarize a ticket:',
+      error instanceof Error ? error.message : 'unknown error',
+    )
+  }
+  res.status(502).json({ error: 'Could not summarize the ticket' })
 })
 
 // Admins and agents can both reply to any ticket, whatever its status. The reply is

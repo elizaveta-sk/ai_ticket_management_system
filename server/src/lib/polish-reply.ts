@@ -19,11 +19,6 @@ The message must never start with a greeting or end with a sign-off, even if the
 - Draft: "hi sam, can u send ur id? thanks, jo". Message: "Could you please send your ID?"
 - Draft: "Hello Sam,\n\nYour refund has been issued.\n\nBest regards,\nJo Lee". Message: "Your refund has been issued."`
 
-export function isPolishConfigured() {
-  const apiKey = process.env.OPENAI_API_KEY
-  return Boolean(apiKey) && !apiKey?.startsWith('YOUR_')
-}
-
 // The names never go to the model, because the customer's name comes from an email and
 // could contain instructions to it. Throws if the model stops early, and returns null if
 // a part comes back empty, because neither reply should replace the draft.
