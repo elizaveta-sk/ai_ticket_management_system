@@ -26,7 +26,13 @@ const email = {
   subject: 'Refund',
   text: 'Please refund me.',
 }
-const created = { id: 7, status: 'open', category: null }
+const created = {
+  id: 7,
+  subject: 'Refund',
+  body: 'Please refund me.',
+  status: 'open',
+  category: null,
+}
 
 let server: Server
 let baseUrl: string
@@ -70,10 +76,21 @@ describe('POST /api/webhooks/inbound-email', () => {
     expect(res.status).toBe(201)
     await expect(res.json()).resolves.toEqual({ ticket: created })
     expect(classifyTicketInBackground).toHaveBeenCalledTimes(1)
-    expect(classifyTicketInBackground).toHaveBeenCalledWith({
-      id: 7,
-      subject: 'Refund',
-      body: 'Please refund me.',
+    expect(classifyTicketInBackground).toHaveBeenCalledWith(created)
+  })
+
+  it('creates the ticket from the email', async () => {
+    await deliver(email)
+
+    expect(prisma.ticket.create).toHaveBeenCalledWith({
+      data: {
+        messageId: '<1@example.com>',
+        senderEmail: 'grace@example.com',
+        senderName: 'Grace Student',
+        subject: 'Refund',
+        body: 'Please refund me.',
+      },
+      select: { id: true, subject: true, body: true, status: true, category: true },
     })
   })
 

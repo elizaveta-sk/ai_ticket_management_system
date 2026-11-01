@@ -38,6 +38,36 @@ describe('TicketsPage', () => {
     expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
   })
 
+  it('shows the category of a new ticket once classification has set it', async () => {
+    const newTicket = { ...tickets[1], createdAt: new Date().toISOString() }
+    vi.spyOn(axios, 'get')
+      .mockResolvedValueOnce({ data: { tickets: [newTicket], total: 1 } })
+      .mockResolvedValue({
+        data: { tickets: [{ ...newTicket, category: 'refund_request' }], total: 1 },
+      })
+
+    renderWithQuery(<TicketsPage />)
+
+    const row = (await screen.findByRole('cell', { name: newTicket.subject })).closest('tr')!
+    expect(within(row).getByText('Uncategorized')).toBeInTheDocument()
+    await waitFor(() => expect(within(row).getByText('Refund Request')).toBeInTheDocument(), {
+      timeout: 4_000,
+    })
+    expect(within(row).queryByText('Uncategorized')).not.toBeInTheDocument()
+  })
+
+  it('does not keep requesting tickets for an old ticket with no category', async () => {
+    const get = vi.spyOn(axios, 'get').mockResolvedValue({
+      data: { tickets: [tickets[1]], total: 1 },
+    })
+
+    renderWithQuery(<TicketsPage />)
+
+    await screen.findByRole('cell', { name: tickets[1].subject })
+    await new Promise((resolve) => setTimeout(resolve, 2_500))
+    expect(get).toHaveBeenCalledTimes(1)
+  })
+
   it('requests /api/tickets and shows a row for each ticket with readable labels', async () => {
     const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 

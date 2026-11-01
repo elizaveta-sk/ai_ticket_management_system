@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import TicketControls from '../components/TicketControls.tsx'
 import TicketMessage from '../components/TicketMessage.tsx'
 import TicketReplies from '../components/TicketReplies.tsx'
+import { classificationRefetchInterval } from '../lib/classification-refetch.ts'
 import { sanitizeText } from '../lib/sanitize-text.ts'
 
 // Only for display: the original text stays unchanged in the database.
@@ -44,6 +45,10 @@ function TicketDetailPage() {
   } = useQuery({
     queryKey: ['ticket', id],
     queryFn: () => fetchTicket(id),
+    refetchInterval: (query) => {
+      const current = query.state.data
+      return classificationRefetchInterval(current ? [current] : undefined)
+    },
   })
 
   return (

@@ -110,10 +110,10 @@ ticketsRouter.patch('/tickets/:id', requireAuth, async (req, res) => {
     return
   }
 
-  const { status, category, assignedToId } = parsed.data
-  if (assignedToId) {
+  const changes = parsed.data
+  if (changes.assignedToId) {
     const agent = await prisma.user.findFirst({
-      where: { id: assignedToId, role: Role.agent, deletedAt: null },
+      where: { id: changes.assignedToId, role: Role.agent, deletedAt: null },
       select: { id: true },
     })
     if (!agent) {
@@ -125,7 +125,7 @@ ticketsRouter.patch('/tickets/:id', requireAuth, async (req, res) => {
   try {
     const ticket = await prisma.ticket.update({
       where: { id: id.data },
-      data: { status, category, assignedToId },
+      data: changes,
       select: ticketDetailSelect,
     })
     res.json({ ticket })

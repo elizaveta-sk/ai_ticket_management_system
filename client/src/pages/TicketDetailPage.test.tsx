@@ -68,6 +68,20 @@ describe('TicketDetailPage', () => {
     )
   })
 
+  it('shows the category of a new ticket once classification has set it', async () => {
+    const createdAt = new Date().toISOString()
+    mockApi(
+      { ...ticket, createdAt, category: null },
+      { ...ticket, createdAt, category: 'refund_request' },
+    )
+
+    renderPage()
+
+    const category = await screen.findByRole('combobox', { name: 'Category' })
+    expect(category).toHaveTextContent('Uncategorized')
+    await waitFor(() => expect(category).toHaveTextContent('Refund Request'), { timeout: 4_000 })
+  })
+
   it('requests the ticket in the URL and shows its details', async () => {
     const get = mockApi(ticket)
 

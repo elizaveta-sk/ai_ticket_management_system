@@ -5,6 +5,7 @@ import { ticketPageSize, type Ticket } from 'core/tickets'
 import { useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useDebouncedValue } from '@/lib/use-debounced-value'
+import { classificationRefetchInterval } from '../lib/classification-refetch.ts'
 import TicketFilters, { type TicketFilterValues } from '../components/TicketFilters.tsx'
 import TicketsTable from '../components/TicketsTable.tsx'
 
@@ -55,6 +56,7 @@ function TicketsPage() {
     queryFn: () => fetchTickets(sorting, filters, search, pagination),
     // Keep the current rows on screen until the new ones arrive.
     placeholderData: keepPreviousData,
+    refetchInterval: (query) => classificationRefetchInterval(query.state.data?.tickets),
   })
   const tickets = data?.tickets
   const total = data?.total
