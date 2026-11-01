@@ -1,0 +1,21 @@
+[build]
+  command = "bun run build"
+  publish = "client/dist"
+
+[build.environment]
+  # Must be able to read bun.lock; Netlify's default Bun is too old.
+  BUN_VERSION = "1.4.4"
+
+# The client calls relative /api URLs, so the browser only ever talks to Netlify.
+# This keeps login cookies first-party and means the API needs no CORS setup.
+[[redirects]]
+  from = "/api/*"
+  to = "https://ai-ticket-management-system-k8fl.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+# React Router handles every other path in the browser.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

@@ -1,6 +1,6 @@
 // Prisma commands run with Bun: `bunx --bun prisma <command>`.
 import "dotenv/config";
-import { defineConfig, env } from "prisma/config";
+import { defineConfig } from "prisma/config";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -8,6 +8,8 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: env("DATABASE_URL"),
+    // Not env(), which throws when unset: `prisma generate` needs no database,
+    // and it runs on every install, including Netlify's frontend build.
+    url: process.env.DATABASE_URL,
   },
 });
