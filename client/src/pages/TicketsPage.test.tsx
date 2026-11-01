@@ -59,6 +59,21 @@ describe('TicketsPage', () => {
     expect(container.querySelector('[data-slot="skeleton"]')).not.toBeInTheDocument()
   })
 
+  it('links each subject to the ticket details', async () => {
+    vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
+
+    renderWithQuery(<TicketsPage />)
+
+    expect(await screen.findByRole('link', { name: tickets[0].subject })).toHaveAttribute(
+      'href',
+      '/tickets/2',
+    )
+    expect(screen.getByRole('link', { name: tickets[1].subject })).toHaveAttribute(
+      'href',
+      '/tickets/1',
+    )
+  })
+
   it('shows Uncategorized for a ticket without a category', async () => {
     vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 

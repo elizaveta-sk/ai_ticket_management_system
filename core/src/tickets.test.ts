@@ -1,5 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import { inboundEmailSchema, ticketQuerySchema } from './tickets.ts'
+import { inboundEmailSchema, ticketIdSchema, ticketQuerySchema } from './tickets.ts'
+
+describe('ticketIdSchema', () => {
+  it('reads a number from URL text', () => {
+    expect(ticketIdSchema.parse('42')).toBe(42)
+  })
+
+  it('accepts the largest id the database can hold and rejects the next', () => {
+    expect(ticketIdSchema.parse('2147483647')).toBe(2147483647)
+    expect(ticketIdSchema.safeParse('2147483648').success).toBe(false)
+  })
+
+  it.each(['0', '-1', '1.5', '1e3', '0x10', '007', 'abc', '', ' 1', '9'.repeat(400)])(
+    'rejects "%s"',
+    (id) => {
+      expect(ticketIdSchema.safeParse(id).success).toBe(false)
+    },
+  )
+})
 
 describe('ticketQuerySchema', () => {
   it('defaults to newest first', () => {

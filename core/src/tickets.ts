@@ -26,6 +26,13 @@ export const inboundEmailSchema = z.object({
 
 export type InboundEmail = z.infer<typeof inboundEmailSchema>
 
+// The id in a ticket's URL. Limited to what the database's integer column can hold.
+export const ticketIdSchema = z
+  .string()
+  .regex(/^[1-9]\d*$/)
+  .transform(Number)
+  .pipe(z.number().max(2_147_483_647))
+
 export const ticketSearchMaxLength = 200
 export const ticketPageSize = 20
 

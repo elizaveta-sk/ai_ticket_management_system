@@ -1,4 +1,4 @@
-import { ticketQuerySchema } from 'core/tickets'
+import { ticketIdSchema, ticketQuerySchema } from 'core/tickets'
 import { Router } from 'express'
 import type { Prisma } from '../generated/prisma/client.ts'
 import { prisma } from '../lib/prisma.ts'
@@ -49,4 +49,29 @@ ticketsRouter.get('/tickets', requireAuth, async (req, res) => {
     prisma.ticket.count({ where }),
   ])
   res.json({ tickets, total })
+})
+
+// An id that could never exist gets the same answer as one that doesn't.
+ticketsRouter.get('/tickets/:id', requireAuth, async (req, res) => {
+  const id = ticketIdSchema.safeParse(req.params.id)
+  const ticket = id.success
+    ? await prisma.ticket.findUnique({
+        where: { id: id.data },
+        select: {
+          id: true,
+          subject: true,
+          senderName: true,
+          senderEmail: true,
+          status: true,
+          category: true,
+          createdAt: true,
+          body: true,
+        },
+      })
+    : null
+  if (!ticket) {
+    res.status(404).json({ error: 'Ticket not found' })
+    return
+  }
+  res.json({ ticket })
 })

@@ -10,7 +10,7 @@ import {
 } from '@tanstack/react-table'
 import type { TicketCategory, TicketStatus } from 'core/tickets'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { categoryLabels, statusLabels, uncategorizedLabel } from '@/lib/ticket-labels'
+import { TicketCategoryText, TicketStatusBadge } from './TicketFields.tsx'
 
 export type Ticket = {
   id: number
@@ -41,7 +41,14 @@ const noTickets: Ticket[] = []
 const columns = column.columns([
   column.accessor('subject', {
     header: 'Subject',
-    cell: ({ getValue }) => <div className="max-w-72 truncate font-medium">{getValue()}</div>,
+    cell: ({ getValue, row }) => (
+      <Link
+        to={`/tickets/${row.original.id}`}
+        className="block max-w-72 truncate font-medium hover:underline"
+      >
+        {getValue()}
+      </Link>
+    ),
   }),
   column.accessor('senderName', {
     header: 'Sender',
@@ -54,22 +61,11 @@ const columns = column.columns([
   }),
   column.accessor('status', {
     header: 'Status',
-    cell: ({ getValue }) => (
-      <Badge variant={getValue() === 'open' ? 'default' : 'secondary'}>
-        {statusLabels[getValue()]}
-      </Badge>
-    ),
+    cell: ({ getValue }) => <TicketStatusBadge status={getValue()} />,
   }),
   column.accessor('category', {
     header: 'Category',
-    cell: ({ getValue }) => {
-      const category = getValue()
-      return category ? (
-        categoryLabels[category]
-      ) : (
-        <span className="text-muted-foreground">{uncategorizedLabel}</span>
-      )
-    },
+    cell: ({ getValue }) => <TicketCategoryText category={getValue()} />,
   }),
   column.accessor('createdAt', {
     header: 'Created',
