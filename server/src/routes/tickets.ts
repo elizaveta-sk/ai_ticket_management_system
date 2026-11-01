@@ -6,7 +6,9 @@ import {
 } from 'core/tickets'
 import { Router } from 'express'
 import { Prisma, Role, SenderType } from '../generated/prisma/client.ts'
+import { isPolishConfigured, polishReply } from '../lib/polish-reply.ts'
 import { prisma } from '../lib/prisma.ts'
+import { rateLimitPerUser } from '../middleware/rate-limit-per-user.ts'
 import { requireAuth } from '../middleware/require-auth.ts'
 
 const replySelect = {
@@ -132,6 +134,36 @@ ticketsRouter.patch('/tickets/:id', requireAuth, async (req, res) => {
     }
     throw error
   }
+})
+
+// Improves a draft reply without saving anything. Only the draft goes to the model, so
+// nothing a student wrote can act as instructions to it.
+const polishRateLimit = rateLimitPerUser(10, 60_000)
+
+ticketsRouter.post('/replies/polish', requireAuth, polishRateLimit, async (req, res) => {
+  const parsed = createReplySchema.safeParse(req.body)
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0].message })
+    return
+  }
+  if (!isPolishConfigured()) {
+    res.status(503).json({ error: 'Reply polishing is not configured' })
+    return
+  }
+
+  try {
+    // The same rules as sending, so a polished reply can always be sent.
+    const polished = createReplySchema.safeParse({ body: await polishReply(parsed.data.body) })
+    if (polished.success) {
+      res.json({ body: polished.data.body })
+      return
+    }
+    console.error('Could not polish a reply: the model returned an unusable reply')
+  } catch (error) {
+    // Only the message, because the full error includes the draft.
+    console.error('Could not polish a reply:', error instanceof Error ? error.message : 'unknown error')
+  }
+  res.status(502).json({ error: 'Could not polish the reply' })
 })
 
 // Admins and agents can both reply to any ticket, whatever its status. The reply is

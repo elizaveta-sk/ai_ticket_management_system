@@ -13,7 +13,7 @@ import { serverErrorMessage } from '../lib/server-error-message.ts'
 
 function ReplyForm({ ticketId }: { ticketId: number }) {
   const queryClient = useQueryClient()
-  const { control, handleSubmit, reset } = useForm<CreateReplyInput>({
+  const { control, handleSubmit, reset, setValue } = useForm<CreateReplyInput>({
     resolver: zodResolver(createReplySchema),
     defaultValues: { body: '' },
   })
@@ -26,9 +26,21 @@ function ReplyForm({ ticketId }: { ticketId: number }) {
       reset()
     },
   })
+  const polishReply = useMutation({
+    mutationFn: (values: CreateReplyInput) =>
+      axios.post<{ body: string }>('/api/replies/polish', values),
+    onSuccess: ({ data }) => setValue('body', data.body, { shouldValidate: true }),
+  })
+  const isBusy = addReply.isPending || polishReply.isPending
 
   return (
-    <form onSubmit={handleSubmit((values) => addReply.mutate(values))} noValidate>
+    <form
+      onSubmit={handleSubmit((values) => {
+        polishReply.reset()
+        addReply.mutate(values)
+      })}
+      noValidate
+    >
       <FieldGroup>
         <Controller
           name="body"
@@ -41,7 +53,7 @@ function ReplyForm({ ticketId }: { ticketId: number }) {
                 id="reply-body"
                 rows={4}
                 // Read-only rather than disabled, so the cursor stays in the box while it sends.
-                readOnly={addReply.isPending}
+                readOnly={isBusy}
                 aria-invalid={fieldState.invalid}
               />
               {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
@@ -55,8 +67,26 @@ function ReplyForm({ ticketId }: { ticketId: number }) {
             </AlertDescription>
           </Alert>
         )}
-        <div className="flex justify-end">
-          <Button type="submit" disabled={addReply.isPending}>
+        {polishReply.isError && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              {serverErrorMessage(polishReply.error, 'Could not polish the reply')}
+            </AlertDescription>
+          </Alert>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isBusy}
+            onClick={handleSubmit((values) => {
+              addReply.reset()
+              polishReply.mutate(values)
+            })}
+          >
+            {polishReply.isPending ? 'Polishing...' : 'Polish'}
+          </Button>
+          <Button type="submit" disabled={isBusy}>
             {addReply.isPending ? 'Sending...' : 'Send reply'}
           </Button>
         </div>

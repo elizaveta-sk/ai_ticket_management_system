@@ -40,6 +40,7 @@
 - [ ] Implement auto-classification endpoint (categorize incoming tickets)
 - [ ] Implement AI summary endpoint (generate ticket summary)
 - [ ] Implement AI suggested reply endpoint
+- [x] Add a Polish button that improves an agent's draft reply (OpenAI `gpt-5-nano` through the AI SDK)
 - [ ] Build knowledge base structure and seed with initial content
 - [ ] Integrate AI features into ticket detail page UI
 

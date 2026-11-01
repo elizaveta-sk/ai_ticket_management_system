@@ -214,4 +214,137 @@ describe('TicketReplies', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
   })
+
+  describe('polish', () => {
+    const polishButton = () => screen.getByRole('button', { name: 'Polish' })
+
+    function polish(text: string) {
+      fireEvent.change(replyBox(), { target: { value: text } })
+      fireEvent.click(polishButton())
+    }
+
+    it('offers Polish before Send reply', () => {
+      renderReplies()
+
+      const buttons = screen.getAllByRole('button').map((button) => button.textContent)
+      expect(buttons).toEqual(['Polish', 'Send reply'])
+    })
+
+    it('replaces the draft with the polished reply without sending it', async () => {
+      const post = vi
+        .spyOn(axios, 'post')
+        .mockResolvedValue({ data: { body: 'Your refund has been issued.' } })
+
+      renderReplies()
+      polish('  refund done\n')
+
+      await waitFor(() => expect(replyBox()).toHaveValue('Your refund has been issued.'))
+      expect(post).toHaveBeenCalledTimes(1)
+      expect(post).toHaveBeenCalledWith('/api/replies/polish', { body: 'refund done' })
+      expect(replyBox()).not.toHaveAttribute('readonly')
+      expect(sendButton()).toBeEnabled()
+    })
+
+    it('sends the polished reply', async () => {
+      const post = vi
+        .spyOn(axios, 'post')
+        .mockResolvedValueOnce({ data: { body: 'Your refund has been issued.' } })
+        .mockResolvedValueOnce({ data: {} })
+
+      renderReplies()
+      polish('refund done')
+      await waitFor(() => expect(replyBox()).toHaveValue('Your refund has been issued.'))
+      fireEvent.click(sendButton())
+
+      await waitFor(() => expect(replyBox()).toHaveValue(''))
+      expect(post).toHaveBeenLastCalledWith('/api/tickets/2/replies', {
+        body: 'Your refund has been issued.',
+      })
+    })
+
+    it('does not polish an empty draft', async () => {
+      const post = vi.spyOn(axios, 'post').mockResolvedValue({ data: {} })
+
+      renderReplies()
+      polish(' \n ')
+
+      expect(await screen.findByText('Reply is required')).toBeInTheDocument()
+      expect(post).not.toHaveBeenCalled()
+    })
+
+    it('blocks sending, polishing and typing while it polishes', async () => {
+      vi.spyOn(axios, 'post').mockReturnValue(new Promise(() => {}))
+
+      renderReplies()
+      polish('Hello')
+
+      expect(await screen.findByRole('button', { name: 'Polishing...' })).toBeDisabled()
+      expect(sendButton()).toBeDisabled()
+      expect(replyBox()).toHaveAttribute('readonly')
+      expect(replyBox()).toHaveValue('Hello')
+    })
+
+    it('blocks polishing while the reply sends', async () => {
+      vi.spyOn(axios, 'post').mockReturnValue(new Promise(() => {}))
+
+      renderReplies()
+      send('Hello')
+
+      await screen.findByRole('button', { name: 'Sending...' })
+      expect(polishButton()).toBeDisabled()
+    })
+
+    it('shows the server error and keeps the draft when polishing fails', async () => {
+      vi.spyOn(axios, 'post').mockRejectedValue(
+        serverError(503, 'Reply polishing is not configured'),
+      )
+
+      renderReplies()
+      polish('Hello')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Reply polishing is not configured',
+      )
+      expect(replyBox()).toHaveValue('Hello')
+      expect(replyBox()).not.toHaveAttribute('readonly')
+      expect(polishButton()).toBeEnabled()
+    })
+
+    it('shows a general message when polishing fails without a server message', async () => {
+      vi.spyOn(axios, 'post').mockRejectedValue(new Error('Network Error'))
+
+      renderReplies()
+      polish('Hello')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Could not polish the reply')
+    })
+
+    it('removes a polish error when the reply is sent instead', async () => {
+      vi.spyOn(axios, 'post')
+        .mockRejectedValueOnce(new Error('Network Error'))
+        .mockResolvedValueOnce({ data: {} })
+
+      renderReplies()
+      polish('Hello')
+      await screen.findByRole('alert')
+      fireEvent.click(sendButton())
+
+      await waitFor(() => expect(replyBox()).toHaveValue(''))
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('removes a send error when the reply is polished instead', async () => {
+      vi.spyOn(axios, 'post')
+        .mockRejectedValueOnce(new Error('Network Error'))
+        .mockResolvedValueOnce({ data: { body: 'Hello there.' } })
+
+      renderReplies()
+      send('Hello')
+      await screen.findByRole('alert')
+      fireEvent.click(polishButton())
+
+      await waitFor(() => expect(replyBox()).toHaveValue('Hello there.'))
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+  })
 })
