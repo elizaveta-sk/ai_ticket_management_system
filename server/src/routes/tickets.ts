@@ -1,4 +1,4 @@
-import { ticketSortSchema } from 'core/tickets'
+import { ticketQuerySchema } from 'core/tickets'
 import { Router } from 'express'
 import { prisma } from '../lib/prisma.ts'
 import { requireAuth } from '../middleware/require-auth.ts'
@@ -8,14 +8,27 @@ export const ticketsRouter = Router()
 // Admins and agents can both view tickets. id breaks ties, so tickets with the
 // same value keep a stable order and reversing the sort reverses the whole list.
 ticketsRouter.get('/tickets', requireAuth, async (req, res) => {
-  const parsed = ticketSortSchema.safeParse(req.query)
+  const parsed = ticketQuerySchema.safeParse(req.query)
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0].message })
     return
   }
 
-  const { sortBy, sortOrder } = parsed.data
+  const { sortBy, sortOrder, status, category, search } = parsed.data
+  // contains becomes a LIKE pattern, so % and _ would otherwise act as wildcards.
+  const contains = {
+    contains: search?.replace(/[\\%_]/g, '\\$&'),
+    mode: 'insensitive',
+  } as const
   const tickets = await prisma.ticket.findMany({
+    where: {
+      status,
+      category: category === 'uncategorized' ? null : category,
+      // Only what the table shows, so every result visibly matches the search.
+      OR: search
+        ? [{ subject: contains }, { senderName: contains }, { senderEmail: contains }]
+        : undefined,
+    },
     select: {
       id: true,
       subject: true,

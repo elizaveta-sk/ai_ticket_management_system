@@ -206,6 +206,217 @@ describe('TicketsPage', () => {
     )
   })
 
+  describe('filters', () => {
+    async function choose(filter: string, option: string) {
+      fireEvent.click(screen.getByRole('combobox', { name: filter }))
+      const item = await screen.findByRole('option', { name: option })
+      // Base UI ignores a mouse click on an option unless the press started on it.
+      fireEvent.pointerDown(item)
+      fireEvent.click(item)
+      await waitFor(() =>
+        expect(screen.queryByRole('option', { name: option })).not.toBeInTheDocument(),
+      )
+      expect(screen.getByRole('combobox', { name: filter })).toHaveTextContent(option)
+    }
+
+    it('starts with every ticket and sends no filters', async () => {
+      const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+
+      renderWithQuery(<TicketsPage />)
+      await screen.findByRole('cell', { name: tickets[0].subject })
+
+      expect(screen.getByRole('combobox', { name: 'Filter by status' })).toHaveTextContent(
+        'All statuses',
+      )
+      expect(screen.getByRole('combobox', { name: 'Filter by category' })).toHaveTextContent(
+        'All categories',
+      )
+      expect(get.mock.calls[0][1]?.params).toEqual({ sortBy: 'createdAt', sortOrder: 'desc' })
+    })
+
+    it('asks the server for the chosen status and shows the rows it returns', async () => {
+      const get = vi
+        .spyOn(axios, 'get')
+        .mockResolvedValueOnce({ data: { tickets } })
+        .mockResolvedValueOnce({ data: { tickets: [tickets[0]] } })
+
+      renderWithQuery(<TicketsPage />)
+      await screen.findByRole('cell', { name: tickets[1].subject })
+
+      await choose('Filter by status', 'Resolved')
+
+      await waitFor(() =>
+        expect(screen.queryByRole('cell', { name: tickets[1].subject })).not.toBeInTheDocument(),
+      )
+      expect(screen.getByRole('cell', { name: tickets[0].subject })).toBeInTheDocument()
+      expect(get.mock.lastCall?.[1]?.params).toMatchObject({ status: 'resolved' })
+    })
+
+    it('offers the three categories and Uncategorized', async () => {
+      vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets: [] } })
+
+      renderWithQuery(<TicketsPage />)
+      await screen.findByText('No tickets found.')
+
+      fireEvent.click(screen.getByRole('combobox', { name: 'Filter by category' }))
+
+      const options = await screen.findAllByRole('option')
+      expect(options.map((option) => option.textContent)).toEqual([
+        'All categories',
+        'General Question',
+        'Technical Question',
+        'Refund Request',
+        'Uncategorized',
+      ])
+    })
+
+    it('sends a search to the server once typing pauses, not on every keystroke', async () => {
+      const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+
+      renderWithQuery(<TicketsPage />)
+      await screen.findByRole('cell', { name: tickets[0].subject })
+      get.mockClear()
+
+      const input = screen.getByRole('searchbox', { name: 'Search tickets' })
+      fireEvent.change(input, { target: { value: 're' } })
+      fireEvent.change(input, { target: { value: 'ref' } })
+      fireEvent.change(input, { target: { value: '  refund ' } })
+
+      expect(get).not.toHaveBeenCalled()
+      await waitFor(() => expect(get).toHaveBeenCalled())
+      expect(get).toHaveBeenCalledTimes(1)
+      expect(get.mock.lastCall?.[1]?.params).toEqual({
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+        search: 'refund',
+      })
+    })
+
+    it('sends no new request for a search of only spaces', async () => {
+      const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+
+      renderWithQuery(<TicketsPage />)
+      await screen.findByRole('cell', { name: tickets[0].subject })
+      get.mockClear()
+
+      fireEvent.change(screen.getByRole('searchbox', { name: 'Search tickets' }), {
+        target: { value: '   ' },
+      })
+      await new Promise((resolve) => setTimeout(resolve, 400))
+
+      expect(get).not.toHaveBeenCalled()
+    })
+
+    it('keeps the search box and its text when nothing matches', async () => {
+      vi.spyOn(axios, 'get')
+        .mockResolvedValueOnce({ data: { tickets } })
+        .mockResolvedValueOnce({ data: { tickets: [] } })
+
+      renderWithQuery(<TicketsPage />)
+      await screen.findByRole('cell', { name: tickets[0].subject })
+
+      const input = screen.getByRole('searchbox', { name: 'Search tickets' })
+      fireEvent.change(input, { target: { value: 'nothing like this' } })
+
+      expect(await screen.findByText('No tickets found.')).toBeInTheDocument()
+      expect(screen.getByRole('searchbox', { name: 'Search tickets' })).toBe(input)
+      expect(input).toHaveValue('nothing like this')
+    })
+
+    it.each([
+      ['General Question', 'general_question'],
+      ['Technical Question', 'technical_question'],
+      ['Refund Request', 'refund_request'],
+      ['Uncategorized', 'uncategorized'],
+    ])('asks the server for the %s category', async (option, category) => {
+      const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+
+      renderWithQuery(<TicketsPage />)
+      await screen.findByRole('cell', { name: tickets[0].subject })
+
+      await choose('Filter by category', option)
+
+      await waitFor(() => expect(get.mock.lastCall?.[1]?.params).toMatchObject({ category }))
+    })
+
+    it('combines filters with each other and with the sort', async () => {
+      const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+
+      renderWithQuery(<TicketsPage />)
+      await screen.findByRole('cell', { name: tickets[0].subject })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Subject' }))
+      await choose('Filter by status', 'Open')
+      await choose('Filter by category', 'General Question')
+
+      await waitFor(() =>
+        expect(get.mock.lastCall?.[1]?.params).toEqual({
+          sortBy: 'subject',
+          sortOrder: 'asc',
+          status: 'open',
+          category: 'general_question',
+        }),
+      )
+    })
+
+    it('stops sending a filter once All is chosen again', async () => {
+      const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets } })
+
+      renderWithQuery(<TicketsPage />)
+      await screen.findByRole('cell', { name: tickets[0].subject })
+
+      await choose('Filter by status', 'Closed')
+      await waitFor(() => expect(get.mock.lastCall?.[1]?.params).toMatchObject({ status: 'closed' }))
+      get.mockClear()
+      await choose('Filter by status', 'All statuses')
+
+      // Going back to a filter set that was already loaded may be served from the
+      // cache, so this checks the request only if one was made.
+      for (const [, config] of get.mock.calls) {
+        expect(config?.params).toEqual({ sortBy: 'createdAt', sortOrder: 'desc' })
+      }
+      expect(screen.getByRole('cell', { name: tickets[0].subject })).toBeInTheDocument()
+    })
+
+    it('keeps the filters on screen when nothing matches, so they can be changed', async () => {
+      vi.spyOn(axios, 'get')
+        .mockResolvedValueOnce({ data: { tickets } })
+        .mockResolvedValueOnce({ data: { tickets: [] } })
+        .mockResolvedValueOnce({ data: { tickets } })
+
+      renderWithQuery(<TicketsPage />)
+      await screen.findByRole('cell', { name: tickets[0].subject })
+
+      await choose('Filter by status', 'Closed')
+
+      expect(await screen.findByText('No tickets found.')).toBeInTheDocument()
+      expect(screen.queryByRole('table')).not.toBeInTheDocument()
+
+      await choose('Filter by status', 'Open')
+
+      expect(await screen.findByRole('cell', { name: tickets[0].subject })).toBeInTheDocument()
+    })
+
+    it('keeps the filters on screen when a request fails, so another can be tried', async () => {
+      vi.spyOn(axios, 'get')
+        .mockResolvedValueOnce({ data: { tickets } })
+        .mockRejectedValueOnce(new Error('Request failed with status code 500'))
+        .mockResolvedValueOnce({ data: { tickets } })
+
+      renderWithQuery(<TicketsPage />)
+      await screen.findByRole('cell', { name: tickets[0].subject })
+
+      await choose('Filter by status', 'Closed')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Could not load tickets')
+
+      await choose('Filter by status', 'Open')
+
+      expect(await screen.findByRole('cell', { name: tickets[0].subject })).toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+  })
+
   it('shows an empty message and no table when there are no tickets', async () => {
     vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets: [] } })
 

@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { categoryLabels, statusLabels, uncategorizedLabel } from '@/lib/ticket-labels'
 
 export type Ticket = {
   id: number
@@ -28,18 +29,6 @@ export type Ticket = {
   status: TicketStatus
   category: TicketCategory | null
   createdAt: string
-}
-
-const statusLabels: Record<TicketStatus, string> = {
-  open: 'Open',
-  resolved: 'Resolved',
-  closed: 'Closed',
-}
-
-const categoryLabels: Record<TicketCategory, string> = {
-  general_question: 'General Question',
-  technical_question: 'Technical Question',
-  refund_request: 'Refund Request',
 }
 
 const features = tableFeatures({ rowSortingFeature })
@@ -76,7 +65,7 @@ const columns = column.columns([
       return category ? (
         categoryLabels[category]
       ) : (
-        <span className="text-muted-foreground">Uncategorized</span>
+        <span className="text-muted-foreground">{uncategorizedLabel}</span>
       )
     },
   }),

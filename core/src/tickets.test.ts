@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { inboundEmailSchema, ticketSortSchema } from './tickets.ts'
+import { inboundEmailSchema, ticketQuerySchema } from './tickets.ts'
 
-describe('ticketSortSchema', () => {
+describe('ticketQuerySchema', () => {
   it('defaults to newest first', () => {
-    expect(ticketSortSchema.parse({})).toEqual({ sortBy: 'createdAt', sortOrder: 'desc' })
+    expect(ticketQuerySchema.parse({})).toEqual({ sortBy: 'createdAt', sortOrder: 'desc' })
   })
 
   it.each(['subject', 'senderName', 'status', 'category', 'createdAt'])('accepts %s', (sortBy) => {
-    expect(ticketSortSchema.parse({ sortBy, sortOrder: 'asc' })).toEqual({
+    expect(ticketQuerySchema.parse({ sortBy, sortOrder: 'asc' })).toEqual({
       sortBy,
       sortOrder: 'asc',
     })
@@ -18,8 +18,49 @@ describe('ticketSortSchema', () => {
     ['a blank column', { sortBy: '' }],
     ['a repeated column', { sortBy: ['subject', 'status'] }],
     ['an unknown order', { sortOrder: 'sideways' }],
+    ['an unknown status', { status: 'pending' }],
+    ['a blank status', { status: '' }],
+    ['a repeated status', { status: ['open', 'closed'] }],
+    ['an unknown category', { category: 'billing' }],
+    ['a blank category', { category: '' }],
+    ['a mistyped filter', { statuss: 'open' }],
+    ['a filter written as an array', { 'status[]': 'open' }],
   ])('rejects %s', (_label, input) => {
-    expect(ticketSortSchema.safeParse(input).success).toBe(false)
+    expect(ticketQuerySchema.safeParse(input).success).toBe(false)
+  })
+
+  it.each(['open', 'resolved', 'closed'])('accepts the %s status', (status) => {
+    expect(ticketQuerySchema.parse({ status }).status).toBe(status)
+  })
+
+  it.each(['general_question', 'technical_question', 'refund_request', 'uncategorized'])(
+    'accepts the %s category',
+    (category) => {
+      expect(ticketQuerySchema.parse({ category }).category).toBe(category)
+    },
+  )
+
+  describe('search', () => {
+    it('is optional', () => {
+      expect(ticketQuerySchema.parse({}).search).toBeUndefined()
+    })
+
+    it('trims surrounding whitespace and removes NUL characters', () => {
+      expect(ticketQuerySchema.parse({ search: '  ref\0und  ' }).search).toBe('refund')
+    })
+
+    it('treats whitespace as an empty search', () => {
+      expect(ticketQuerySchema.parse({ search: '   ' }).search).toBe('')
+    })
+
+    it('accepts 200 characters and rejects 201', () => {
+      expect(ticketQuerySchema.safeParse({ search: 'a'.repeat(200) }).success).toBe(true)
+      expect(ticketQuerySchema.safeParse({ search: 'a'.repeat(201) }).success).toBe(false)
+    })
+
+    it('rejects a repeated search', () => {
+      expect(ticketQuerySchema.safeParse({ search: ['a', 'b'] }).success).toBe(false)
+    })
   })
 })
 

@@ -26,11 +26,28 @@ export const inboundEmailSchema = z.object({
 
 export type InboundEmail = z.infer<typeof inboundEmailSchema>
 
+export const ticketSearchMaxLength = 200
+
 // The query string of GET /api/tickets. Only these columns can be sorted, and
-// without any parameters the newest tickets come first.
-export const ticketSortSchema = z.object({
+// without any parameters every ticket is returned with the newest first. Unknown
+// parameters are rejected, so a mistyped filter can't silently return everything.
+export const ticketQuerySchema = z.strictObject({
   sortBy: z
     .enum(['subject', 'senderName', 'status', 'category', 'createdAt'], 'Invalid sort column')
     .default('createdAt'),
   sortOrder: z.enum(['asc', 'desc'], 'Invalid sort order').default('desc'),
+  status: z.enum(['open', 'resolved', 'closed'], 'Invalid status').optional(),
+  // "uncategorized" selects the tickets whose category is still empty.
+  category: z
+    .enum(
+      ['general_question', 'technical_question', 'refund_request', 'uncategorized'],
+      'Invalid category',
+    )
+    .optional(),
+  // Blank once trimmed means no search. NUL characters would make PostgreSQL reject the query.
+  search: z
+    .string('Invalid search')
+    .transform((value) => removeNulls(value).trim())
+    .pipe(z.string().max(ticketSearchMaxLength, 'Search is too long'))
+    .optional(),
 })
