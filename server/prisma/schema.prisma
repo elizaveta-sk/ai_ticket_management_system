@@ -26,6 +26,8 @@ model User {
   role          Role      @default(agent)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+  deletedEmail  String?
   sessions      Session[]
   accounts      Account[]
 

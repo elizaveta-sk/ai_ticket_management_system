@@ -1,5 +1,6 @@
 import { betterAuth } from 'better-auth'
 import { prismaAdapter } from 'better-auth/adapters/prisma'
+import { APIError } from 'better-auth/api'
 import { prisma } from './prisma.ts'
 
 function requireEnv(name: string): string {
@@ -25,6 +26,23 @@ export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
   emailAndPassword: { enabled: true, disableSignUp: true },
   trustedOrigins: [requireEnv('CLIENT_URL')],
+  databaseHooks: {
+    session: {
+      create: {
+        // A deleted user keeps their password, and knows their id, so they could
+        // otherwise sign in with the placeholder email set on deletion.
+        before: async (session) => {
+          const user = await prisma.user.findUnique({
+            where: { id: session.userId },
+            select: { deletedAt: true },
+          })
+          if (user?.deletedAt) {
+            throw new APIError('UNAUTHORIZED', { message: 'Invalid email or password' })
+          }
+        },
+      },
+    },
+  },
   // Counters are in memory, so they reset on restart and assume a single instance.
   rateLimit: {
     enabled: process.env.NODE_ENV === 'production',
@@ -34,7 +52,7 @@ export const auth = betterAuth({
     additionalFields: {
       role: {
         type: ['admin', 'agent'],
-        required: false,
+        required: true,
         defaultValue: 'agent',
         input: false,
       },

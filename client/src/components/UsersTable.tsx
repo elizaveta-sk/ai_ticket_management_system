@@ -8,6 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import DeleteUserDialog from './DeleteUserDialog.tsx'
 import EditUserDialog from './EditUserDialog.tsx'
 
 export type User = {
@@ -50,7 +51,7 @@ function UsersTable({ users, isPending }: { users?: User[]; isPending: boolean }
                 <Skeleton className="h-4 w-20" />
               </TableCell>
               <TableCell>
-                <Skeleton className="ml-auto size-7" />
+                <Skeleton className="ml-auto h-7 w-15" />
               </TableCell>
             </TableRow>
           ))}
@@ -64,8 +65,12 @@ function UsersTable({ users, isPending }: { users?: User[]; isPending: boolean }
             <TableCell className="text-muted-foreground">
               {new Date(user.createdAt).toLocaleDateString()}
             </TableCell>
-            <TableCell className="text-right">
-              <EditUserDialog user={user} />
+            <TableCell>
+              <div className="flex justify-end gap-1">
+                <EditUserDialog user={user} />
+                {/* Admins can't be deleted. The spacer keeps the edit buttons lined up. */}
+                {user.role === 'admin' ? <div className="size-7" /> : <DeleteUserDialog user={user} />}
+              </div>
             </TableCell>
           </TableRow>
         ))}

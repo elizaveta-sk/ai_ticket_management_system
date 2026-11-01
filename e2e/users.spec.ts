@@ -622,3 +622,224 @@ test.describe('edit user dialog', () => {
     await expect(page.getByRole('navigation').getByText(original.name, { exact: true })).toBeVisible()
   })
 })
+
+// ---------------------------------------------------------------------------
+// Delete user
+// ---------------------------------------------------------------------------
+
+function deleteUser(page: Page, id: string) {
+  return page.request.delete(`/api/users/${id}`)
+}
+
+/** Credential sign-in in a fresh context. Returns the status and the error message, if any. */
+async function signInResult(browser: import('@playwright/test').Browser, email: string, password: string) {
+  const ctx = await browser.newContext()
+  const res = await ctx.request.post('/api/auth/sign-in/email', {
+    data: { email, password },
+    headers: { Origin: 'http://localhost:5174' },
+  })
+  const status = res.status()
+  const body = await res.json().catch(() => ({}))
+  await ctx.close()
+  return { status, message: (body as { message?: string }).message }
+}
+
+test.describe('DELETE /api/users/:id access', () => {
+  test('returns 401 when signed out and leaves the user unchanged', async ({ page, request, browser }) => {
+    await loginAsAdmin(page)
+    const target = await createAgent(page, 'del-anon')
+    const res = await request.delete(`/api/users/${target.id}`)
+    expect(res.status()).toBe(401)
+    expect(await getUser(page, target.id)).toEqual(target)
+    expect(await signInStatus(browser, target.email, validPassword)).toBe(200)
+  })
+
+  test('returns 403 for an agent and leaves the user unchanged', async ({ page, browser }) => {
+    const adminCtx = await browser.newContext()
+    const adminPage = await adminCtx.newPage()
+    await loginAsAdmin(adminPage)
+    const target = await createAgent(adminPage, 'del-agent')
+
+    await login(page, agentEmail(), agentPassword())
+    const res = await deleteUser(page, target.id)
+    expect(res.status()).toBe(403)
+    expect(await res.json()).toEqual({ error: 'Forbidden' })
+
+    expect(await getUser(adminPage, target.id)).toEqual(target)
+    expect(await signInStatus(browser, target.email, validPassword)).toBe(200)
+    await adminCtx.close()
+  })
+})
+
+test.describe('DELETE /api/users/:id behaviour', () => {
+  test('the admin cannot delete their own account', async ({ page, browser }) => {
+    await loginAsAdmin(page)
+    const me = (await (await page.request.get('/api/me')).json()).user as ApiUser
+    const res = await deleteUser(page, me.id)
+    expect(res.status()).toBe(403)
+    expect(await res.json()).toEqual({ error: 'The admin account cannot be deleted' })
+
+    expect(await listEmails(page)).toContain(adminEmail())
+    expect((await page.request.get('/api/me')).status()).toBe(200)
+    expect(await signInStatus(browser, adminEmail(), adminPassword())).toBe(200)
+  })
+
+  test('returns 404 for an unknown id', async ({ page }) => {
+    await loginAsAdmin(page)
+    const res = await deleteUser(page, 'no-such-user-id')
+    expect(res.status()).toBe(404)
+    expect(await res.json()).toEqual({ error: 'User not found' })
+  })
+
+  test('deleting the same user twice returns 204 then 404', async ({ page }) => {
+    await loginAsAdmin(page)
+    const target = await createAgent(page, 'del-twice')
+    expect((await deleteUser(page, target.id)).status()).toBe(204)
+    const second = await deleteUser(page, target.id)
+    expect(second.status()).toBe(404)
+    expect(await second.json()).toEqual({ error: 'User not found' })
+  })
+
+  test('a deleted user is gone from the list and cannot be edited', async ({ page }) => {
+    await loginAsAdmin(page)
+    const target = await createAgent(page, 'del-list')
+    const other = await createAgent(page, 'del-list-other')
+    expect((await deleteUser(page, target.id)).status()).toBe(204)
+
+    expect(await getUser(page, target.id)).toBeUndefined()
+    const emails = await listEmails(page)
+    expect(emails).not.toContain(target.email)
+    expect(emails.some((e) => e.endsWith('@deleted.invalid'))).toBe(false)
+    expect(await getUser(page, other.id)).toEqual(other)
+
+    const res = await putUser(page, target.id, { name: 'Revived Person', email: target.email, password: '' })
+    expect(res.status()).toBe(404)
+    expect(await res.json()).toEqual({ error: 'User not found' })
+  })
+
+  test('an open session is revoked and sign-in fails with the original email', async ({ page, browser }) => {
+    await loginAsAdmin(page)
+    const target = await createAgent(page, 'del-sess')
+
+    const userCtx = await browser.newContext()
+    const userPage = await userCtx.newPage()
+    await login(userPage, target.email, validPassword)
+    expect((await userPage.request.get('/api/me')).status()).toBe(200)
+
+    expect((await deleteUser(page, target.id)).status()).toBe(204)
+
+    expect((await userPage.request.get('/api/me')).status()).toBe(401)
+    await userCtx.close()
+    expect(await signInStatus(browser, target.email, validPassword)).not.toBe(200)
+    // The admin's own session is unaffected.
+    expect((await page.request.get('/api/me')).status()).toBe(200)
+  })
+
+  test('the placeholder email cannot sign in and fails like a wrong password', async ({ page, browser }) => {
+    await loginAsAdmin(page)
+    const target = await createAgent(page, 'del-ph')
+    const live = await createAgent(page, 'del-ph-live')
+    expect((await deleteUser(page, target.id)).status()).toBe(204)
+
+    const placeholder = await signInResult(browser, `deleted-${target.id}@deleted.invalid`, validPassword)
+    expect(placeholder.status).not.toBe(200)
+
+    const wrong = await signInResult(browser, live.email, 'Totally-wrong-pw-1')
+    expect(wrong.status).not.toBe(200)
+    expect(placeholder.status).toBe(wrong.status)
+    expect(placeholder.message).toBe(wrong.message)
+    expect(placeholder.message).toBe('Invalid email or password')
+
+    // The original email fails with the same message too.
+    const original = await signInResult(browser, target.email, validPassword)
+    expect(original.status).toBe(wrong.status)
+    expect(original.message).toBe(wrong.message)
+  })
+})
+
+test.describe('email reuse after delete', () => {
+  test('a freed email can be used for a new user with a new password', async ({ page, browser }) => {
+    await loginAsAdmin(page)
+    const old = await createAgent(page, 'del-reuse')
+    expect((await deleteUser(page, old.id)).status()).toBe(204)
+
+    const newPassword = 'Fresh-start-pw-321'
+    const res = await createViaApi(page, { name: 'Reused Email Person', email: old.email, password: newPassword })
+    expect(res.status()).toBe(201)
+    const created = (await res.json()).user as ApiUser
+    expect(created.email).toBe(old.email)
+    expect(created.id).not.toBe(old.id)
+
+    expect(await signInStatus(browser, old.email, newPassword)).toBe(200)
+    expect(await signInStatus(browser, old.email, validPassword)).not.toBe(200)
+    expect(await getUser(page, created.id)).toEqual(created)
+    expect(await getUser(page, old.id)).toBeUndefined()
+  })
+
+  test('editing another user to use a freed email works', async ({ page, browser }) => {
+    await loginAsAdmin(page)
+    const gone = await createAgent(page, 'del-edit-gone')
+    const keeper = await createAgent(page, 'del-edit-keep')
+    expect((await deleteUser(page, gone.id)).status()).toBe(204)
+
+    const res = await putUser(page, keeper.id, { name: keeper.name, email: gone.email, password: '' })
+    expect(res.status()).toBe(200)
+    expect((await res.json()).user.email).toBe(gone.email)
+    expect((await getUser(page, keeper.id)).email).toBe(gone.email)
+    expect(await signInStatus(browser, gone.email, validPassword)).toBe(200)
+  })
+})
+
+test.describe('delete user dialog', () => {
+  test('agent rows have a delete button and the admin row does not', async ({ page }) => {
+    await loginAsAdmin(page)
+    const target = await createAgent(page, 'del-ui-btn')
+    await page.goto('/users')
+
+    const agentRow = page.getByRole('row').filter({ hasText: target.email })
+    await expect(agentRow.getByRole('button', { name: `Delete ${target.name}` })).toBeVisible()
+
+    const adminRow = page.getByRole('row').filter({ hasText: adminEmail() })
+    await expect(adminRow).toBeVisible()
+    await expect(adminRow.getByRole('button', { name: /^Delete / })).toHaveCount(0)
+  })
+
+  test('clicking opens a dialog naming the user, and Cancel keeps the user', async ({ page, browser }) => {
+    await loginAsAdmin(page)
+    const target = await createAgent(page, 'del-ui-cancel')
+    await page.goto('/users')
+    const row = page.getByRole('row').filter({ hasText: target.email })
+    await row.getByRole('button', { name: `Delete ${target.name}` }).click()
+
+    const dialog = page.getByRole('alertdialog')
+    await expect(dialog.getByRole('heading', { name: 'Delete user?' })).toBeVisible()
+    await expect(dialog).toContainText(target.name)
+    await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Delete', exact: true })).toBeVisible()
+
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(row).toBeVisible()
+    expect(await getUser(page, target.id)).toEqual(target)
+    expect(await signInStatus(browser, target.email, validPassword)).toBe(200)
+  })
+
+  test('confirming closes the dialog, removes the row and the user can no longer sign in', async ({
+    page,
+    browser,
+  }) => {
+    await loginAsAdmin(page)
+    const target = await createAgent(page, 'del-ui-ok')
+    await page.goto('/users')
+    const row = page.getByRole('row').filter({ hasText: target.email })
+    await row.getByRole('button', { name: `Delete ${target.name}` }).click()
+
+    const dialog = page.getByRole('alertdialog')
+    await dialog.getByRole('button', { name: 'Delete', exact: true }).click()
+
+    await expect(dialog).toBeHidden()
+    await expect(page.getByRole('row').filter({ hasText: target.email })).toHaveCount(0)
+    expect(await getUser(page, target.id)).toBeUndefined()
+    expect(await signInStatus(browser, target.email, validPassword)).not.toBe(200)
+  })
+})

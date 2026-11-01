@@ -18,6 +18,7 @@ usersRouter.get('/me', requireAuth, (req, res) => {
 
 usersRouter.get('/users', requireAuth, requireRole(Role.admin), async (_req, res) => {
   const users = await prisma.user.findMany({
+    where: { deletedAt: null },
     select: userSelect,
     orderBy: { createdAt: 'asc' },
   })
@@ -79,7 +80,7 @@ usersRouter.put('/users/:id', requireAuth, requireRole(Role.admin), async (req, 
   try {
     const user = await prisma.$transaction(async (tx) => {
       const updated = await tx.user.update({
-        where: { id },
+        where: { id, deletedAt: null },
         data: { name, email },
         select: userSelect,
       })
@@ -122,4 +123,32 @@ usersRouter.put('/users/:id', requireAuth, requireRole(Role.admin), async (req, 
     }
     throw error
   }
+})
+
+// Soft delete: the row stays, and the email moves to deletedEmail so it can be
+// reused. The session hook in lib/auth.ts stops the placeholder email signing in.
+usersRouter.delete('/users/:id', requireAuth, requireRole(Role.admin), async (req, res) => {
+  const id = req.params.id as string
+  const user = await prisma.user.findFirst({ where: { id, deletedAt: null } })
+  if (!user) {
+    res.status(404).json({ error: 'User not found' })
+    return
+  }
+  if (user.role === Role.admin) {
+    res.status(403).json({ error: 'The admin account cannot be deleted' })
+    return
+  }
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+        deletedEmail: user.email,
+        email: `deleted-${id}@deleted.invalid`,
+      },
+    }),
+    prisma.session.deleteMany({ where: { userId: id } }),
+  ])
+  res.status(204).end()
 })
