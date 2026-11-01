@@ -29,6 +29,11 @@ enum TicketCategory {
   refund_request
 }
 
+enum SenderType {
+  agent
+  customer
+}
+
 model Ticket {
   id           Int             @id @default(autoincrement())
   // The email's Message-ID. Unique so a webhook delivered twice creates one ticket.
@@ -45,9 +50,27 @@ model Ticket {
   assignedTo   User?           @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
+  replies      TicketReply[]
 
   @@index([assignedToId])
   @@map("ticket")
+}
+
+model TicketReply {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  body       String
+  senderType SenderType
+  // The agent who wrote it. Empty on customer replies, which come from the ticket's sender.
+  // Users are soft deleted, so a former agent's replies keep their author.
+  authorId   String?
+  author     User?      @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  createdAt  DateTime   @default(now())
+
+  @@index([ticketId])
+  @@index([authorId])
+  @@map("ticket_reply")
 }
 
 model User {
@@ -64,6 +87,7 @@ model User {
   sessions        Session[]
   accounts        Account[]
   assignedTickets Ticket[]
+  ticketReplies   TicketReply[]
 
   @@unique([email])
   @@map("user")

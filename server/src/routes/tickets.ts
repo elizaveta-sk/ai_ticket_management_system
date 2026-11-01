@@ -1,8 +1,21 @@
-import { ticketIdSchema, ticketQuerySchema, updateTicketSchema } from 'core/tickets'
+import {
+  createReplySchema,
+  ticketIdSchema,
+  ticketQuerySchema,
+  updateTicketSchema,
+} from 'core/tickets'
 import { Router } from 'express'
-import { Prisma, Role } from '../generated/prisma/client.ts'
+import { Prisma, Role, SenderType } from '../generated/prisma/client.ts'
 import { prisma } from '../lib/prisma.ts'
 import { requireAuth } from '../middleware/require-auth.ts'
+
+const replySelect = {
+  id: true,
+  body: true,
+  senderType: true,
+  createdAt: true,
+  author: { select: { name: true } },
+} as const
 
 const ticketDetailSelect = {
   id: true,
@@ -14,7 +27,9 @@ const ticketDetailSelect = {
   createdAt: true,
   body: true,
   assignedTo: { select: { id: true, name: true } },
-} as const
+  // Oldest first, so the thread reads from the top. id breaks ties.
+  replies: { select: replySelect, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
+} satisfies Prisma.TicketSelect
 
 export const ticketsRouter = Router()
 
@@ -111,6 +126,41 @@ ticketsRouter.patch('/tickets/:id', requireAuth, async (req, res) => {
     res.json({ ticket })
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      res.status(404).json({ error: 'Ticket not found' })
+      return
+    }
+    throw error
+  }
+})
+
+// Admins and agents can both reply to any ticket, whatever its status. The reply is
+// only stored for now: nothing emails it to the student until outbound email exists.
+ticketsRouter.post('/tickets/:id/replies', requireAuth, async (req, res) => {
+  const id = ticketIdSchema.safeParse(req.params.id)
+  if (!id.success) {
+    res.status(404).json({ error: 'Ticket not found' })
+    return
+  }
+  const parsed = createReplySchema.safeParse(req.body)
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0].message })
+    return
+  }
+
+  try {
+    const reply = await prisma.ticketReply.create({
+      data: {
+        ticketId: id.data,
+        senderType: SenderType.agent,
+        authorId: req.user!.id,
+        body: parsed.data.body,
+      },
+      select: replySelect,
+    })
+    res.status(201).json({ reply })
+  } catch (error) {
+    // The foreign key on ticketId: there is no such ticket.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
       res.status(404).json({ error: 'Ticket not found' })
       return
     }

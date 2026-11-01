@@ -6,9 +6,14 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import TicketControls, { type Assignee } from '../components/TicketControls.tsx'
+import TicketReplies, { type TicketReply } from '../components/TicketReplies.tsx'
 import type { Ticket } from '../components/TicketsTable.tsx'
 
-type TicketDetail = Ticket & { body: string; assignedTo: Assignee | null }
+type TicketDetail = Ticket & {
+  body: string
+  assignedTo: Assignee | null
+  replies: TicketReply[]
+}
 
 // Resolves to null when there is no such ticket, because retrying can't help then.
 async function fetchTicket(id: string) {
@@ -77,6 +82,11 @@ function TicketDetailPage() {
                 )}
               </CardContent>
             </Card>
+            <TicketReplies
+              ticketId={ticket.id}
+              senderName={ticket.senderName}
+              replies={ticket.replies}
+            />
           </div>
           <aside>
             <TicketControls

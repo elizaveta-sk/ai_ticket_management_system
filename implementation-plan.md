@@ -32,6 +32,7 @@
 - [x] Implement update ticket API endpoint (change status, assign agent)
 - [x] Create ticket list page with filtering and sorting
 - [x] Create ticket detail page
+- [x] Add ticket replies (reply thread and reply form on the ticket detail page)
 
 ## Phase 5: AI Features
 

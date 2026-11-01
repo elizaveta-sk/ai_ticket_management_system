@@ -50,6 +50,23 @@ export const updateTicketSchema = z
   })
   .refine((changes) => Object.keys(changes).length > 0, 'Nothing to update')
 
+export const ticketReplyMaxLength = 10_000
+
+// The body of POST /api/tickets/:id/replies. The author comes from the session.
+export const createReplySchema = z.strictObject({
+  body: z
+    .string('Reply is required')
+    .transform((value) => removeNulls(value).trim())
+    .pipe(
+      z
+        .string()
+        .min(1, 'Reply is required')
+        .max(ticketReplyMaxLength, `Reply must be at most ${ticketReplyMaxLength} characters`),
+    ),
+})
+
+export type CreateReplyInput = z.infer<typeof createReplySchema>
+
 export const ticketSearchMaxLength = 200
 export const ticketPageSize = 20
 

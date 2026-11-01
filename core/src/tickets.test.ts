@@ -1,10 +1,42 @@
 import { describe, expect, it } from 'vitest'
 import {
+  createReplySchema,
   inboundEmailSchema,
   ticketIdSchema,
   ticketQuerySchema,
+  ticketReplyMaxLength,
   updateTicketSchema,
 } from './tickets.ts'
+
+describe('createReplySchema', () => {
+  it('trims the reply and keeps the line breaks inside it', () => {
+    expect(createReplySchema.parse({ body: '  Hello,\n\nThanks.\n' })).toEqual({
+      body: 'Hello,\n\nThanks.',
+    })
+  })
+
+  it('removes NUL characters', () => {
+    expect(createReplySchema.parse({ body: 'a\0b' })).toEqual({ body: 'ab' })
+  })
+
+  it('accepts a reply of the maximum length', () => {
+    const body = 'a'.repeat(ticketReplyMaxLength)
+    expect(createReplySchema.parse({ body })).toEqual({ body })
+  })
+
+  it.each([
+    ['an empty reply', { body: '' }],
+    ['only whitespace', { body: ' \n\t ' }],
+    ['only NUL characters', { body: '\0\0' }],
+    ['a reply over the maximum length', { body: 'a'.repeat(ticketReplyMaxLength + 1) }],
+    ['a numeric reply', { body: 1 }],
+    ['no reply', {}],
+    ['other fields', { body: 'Hello', authorId: 'someone-else' }],
+    ['no body', undefined],
+  ])('rejects %s', (_label, input) => {
+    expect(createReplySchema.safeParse(input).success).toBe(false)
+  })
+})
 
 describe('updateTicketSchema', () => {
   it.each([
