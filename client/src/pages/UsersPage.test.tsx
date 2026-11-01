@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import axios from 'axios'
 import { describe, expect, it, vi } from 'vitest'
 import { renderWithQuery } from '../test/render-with-query.tsx'
@@ -71,5 +71,50 @@ describe('UsersPage', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load users')
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+
+  describe('new user dialog', () => {
+    async function renderWithOpenDialog() {
+      vi.spyOn(axios, 'get').mockResolvedValue({ data: { users } })
+      renderWithQuery(<UsersPage />)
+      fireEvent.click(screen.getByRole('button', { name: 'New user' }))
+      return screen.findByRole('dialog')
+    }
+
+    it('is hidden until the button is clicked', async () => {
+      vi.spyOn(axios, 'get').mockResolvedValue({ data: { users } })
+
+      renderWithQuery(<UsersPage />)
+
+      await screen.findByRole('cell', { name: 'Ada Admin' })
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'New user' }))
+
+      const dialog = await screen.findByRole('dialog')
+      expect(within(dialog).getByRole('heading', { name: 'New user' })).toBeInTheDocument()
+    })
+
+    it('hides when clicking outside it', async () => {
+      await renderWithOpenDialog()
+
+      // The overlay covers the page, so it is what a click outside the dialog lands on.
+      const overlay = document.querySelector('[data-slot="dialog-overlay"]')!
+      fireEvent.pointerDown(overlay)
+      fireEvent.mouseDown(overlay)
+      fireEvent.pointerUp(overlay)
+      fireEvent.mouseUp(overlay)
+      fireEvent.click(overlay)
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    })
+
+    it('hides when pressing Escape', async () => {
+      const dialog = await renderWithOpenDialog()
+
+      fireEvent.keyDown(dialog, { key: 'Escape' })
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    })
   })
 })

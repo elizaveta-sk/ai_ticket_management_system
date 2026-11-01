@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
-import axios, { AxiosError, type AxiosResponse } from 'axios'
+import axios from 'axios'
 import { describe, expect, it, vi } from 'vitest'
 import { renderWithQuery } from '../test/render-with-query.tsx'
 import UsersPage from '../pages/UsersPage.tsx'
@@ -34,53 +34,13 @@ function submit() {
   fireEvent.click(screen.getByRole('button', { name: 'Create user' }))
 }
 
+// The form's own behaviour is covered in CreateUserForm.test.tsx.
 describe('CreateUserDialog', () => {
-  it('shows a button that opens a modal with name, email and password fields', async () => {
-    vi.spyOn(axios, 'get').mockResolvedValue({ data: { users: [existingUser] } })
-
-    renderWithQuery(<UsersPage />)
-
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    await openDialog()
-    expect(screen.getByLabelText('Name')).toBeInTheDocument()
-    expect(screen.getByLabelText('Email')).toBeInTheDocument()
-    expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password')
-  })
-
-  it('shows validation errors and sends nothing when the form is invalid', async () => {
-    vi.spyOn(axios, 'get').mockResolvedValue({ data: { users: [existingUser] } })
-    const post = vi.spyOn(axios, 'post')
-
-    renderWithQuery(<UsersPage />)
-    await openDialog()
-    fillForm({ name: 'Al', email: 'not-an-email', password: 'short' })
-    submit()
-
-    expect(await screen.findByText('Name must be at least 3 characters')).toBeInTheDocument()
-    expect(screen.getByText('Enter a valid email address')).toBeInTheDocument()
-    expect(screen.getByText('Password must be at least 8 characters')).toBeInTheDocument()
-    expect(post).not.toHaveBeenCalled()
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-  })
-
-  it('rejects a name that is only long enough because of spaces', async () => {
-    vi.spyOn(axios, 'get').mockResolvedValue({ data: { users: [existingUser] } })
-    const post = vi.spyOn(axios, 'post')
-
-    renderWithQuery(<UsersPage />)
-    await openDialog()
-    fillForm({ name: '  Al  ', email: 'alan@example.com', password: 'password123' })
-    submit()
-
-    expect(await screen.findByText('Name must be at least 3 characters')).toBeInTheDocument()
-    expect(post).not.toHaveBeenCalled()
-  })
-
-  it('creates the user, closes the modal and shows the new user in the list', async () => {
+  it('closes and shows the new user in the list after creating them', async () => {
     vi.spyOn(axios, 'get')
       .mockResolvedValueOnce({ data: { users: [existingUser] } })
       .mockResolvedValue({ data: { users: [existingUser, newUser] } })
-    const post = vi.spyOn(axios, 'post').mockResolvedValue({ data: { user: newUser } })
+    vi.spyOn(axios, 'post').mockResolvedValue({ data: { user: newUser } })
 
     renderWithQuery(<UsersPage />)
     await screen.findByRole('cell', { name: 'Ada Admin' })
@@ -89,35 +49,21 @@ describe('CreateUserDialog', () => {
     submit()
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(post).toHaveBeenCalledWith('/api/users', {
-      name: newUser.name,
-      email: newUser.email,
-      password: 'password123',
-    })
     expect(screen.getByRole('cell', { name: 'Alan Agent' })).toBeInTheDocument()
   })
 
-  it('keeps the modal open and shows the server error when creation fails', async () => {
+  it('stays open when the form is invalid', async () => {
     vi.spyOn(axios, 'get').mockResolvedValue({ data: { users: [existingUser] } })
-    vi.spyOn(axios, 'post').mockRejectedValue(
-      new AxiosError('Request failed', undefined, undefined, undefined, {
-        status: 409,
-        data: { error: 'A user with this email already exists' },
-      } as AxiosResponse),
-    )
 
     renderWithQuery(<UsersPage />)
     await openDialog()
-    fillForm({ name: newUser.name, email: existingUser.email, password: 'password123' })
     submit()
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'A user with this email already exists',
-    )
+    await screen.findByText('Name must be at least 3 characters')
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
-  it('shows a generic error when the server gives no message', async () => {
+  it('stays open when creating the user fails', async () => {
     vi.spyOn(axios, 'get').mockResolvedValue({ data: { users: [existingUser] } })
     vi.spyOn(axios, 'post').mockRejectedValue(new Error('Network Error'))
 
@@ -126,7 +72,8 @@ describe('CreateUserDialog', () => {
     fillForm({ name: newUser.name, email: newUser.email, password: 'password123' })
     submit()
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Could not create user')
+    await screen.findByRole('alert')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
   it('starts with an empty form after being cancelled and reopened', async () => {
@@ -140,6 +87,7 @@ describe('CreateUserDialog', () => {
 
     await openDialog()
     expect(screen.getByLabelText('Name')).toHaveValue('')
+    expect(screen.getByLabelText('Email')).toHaveValue('')
     expect(screen.getByLabelText('Password')).toHaveValue('')
   })
 })
