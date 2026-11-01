@@ -8,6 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import EditUserDialog from './EditUserDialog.tsx'
 
 export type User = {
   id: string
@@ -27,6 +28,9 @@ function UsersTable({ users, isPending }: { users?: User[]; isPending: boolean }
           <TableHead>Email</TableHead>
           <TableHead>Role</TableHead>
           <TableHead>Created</TableHead>
+          <TableHead>
+            <span className="sr-only">Actions</span>
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -45,6 +49,9 @@ function UsersTable({ users, isPending }: { users?: User[]; isPending: boolean }
               <TableCell>
                 <Skeleton className="h-4 w-20" />
               </TableCell>
+              <TableCell>
+                <Skeleton className="ml-auto size-7" />
+              </TableCell>
             </TableRow>
           ))}
         {users?.map((user) => (
@@ -56,6 +63,9 @@ function UsersTable({ users, isPending }: { users?: User[]; isPending: boolean }
             </TableCell>
             <TableCell className="text-muted-foreground">
               {new Date(user.createdAt).toLocaleDateString()}
+            </TableCell>
+            <TableCell className="text-right">
+              <EditUserDialog user={user} />
             </TableCell>
           </TableRow>
         ))}

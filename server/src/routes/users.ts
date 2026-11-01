@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { hashPassword } from 'better-auth/crypto'
-import { createUserSchema } from 'core/users'
+import { createUserSchema, updateUserSchema } from 'core/users'
 import { Router } from 'express'
 import { Prisma, Role } from '../generated/prisma/client.ts'
 import { prisma } from '../lib/prisma.ts'
@@ -59,6 +59,66 @@ usersRouter.post('/users', requireAuth, requireRole(Role.admin), async (req, res
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       res.status(409).json({ error: 'A user with this email already exists' })
       return
+    }
+    throw error
+  }
+})
+
+// Writes the rows directly, like POST above. Never changes the role.
+usersRouter.put('/users/:id', requireAuth, requireRole(Role.admin), async (req, res) => {
+  const parsed = updateUserSchema.safeParse(req.body)
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0].message })
+    return
+  }
+
+  const { name, email, password } = parsed.data
+  // Express types params as string | string[], but a named segment is always a string.
+  const id = req.params.id as string
+  const passwordHash = password ? await hashPassword(password) : undefined
+  try {
+    const user = await prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id },
+        data: { name, email },
+        select: userSelect,
+      })
+
+      if (passwordHash) {
+        const account = await tx.account.findFirst({
+          where: { userId: id, providerId: 'credential' },
+        })
+        if (account) {
+          await tx.account.update({ where: { id: account.id }, data: { password: passwordHash } })
+        } else {
+          await tx.account.create({
+            data: {
+              id: randomUUID(),
+              accountId: id,
+              providerId: 'credential',
+              userId: id,
+              password: passwordHash,
+            },
+          })
+        }
+        // Whoever had the old password loses access now. The admin making this
+        // request stays signed in when changing their own password.
+        await tx.session.deleteMany({ where: { userId: id, id: { not: req.session!.id } } })
+      }
+
+      return updated
+    })
+    res.json({ user })
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2025') {
+        res.status(404).json({ error: 'User not found' })
+        return
+      }
+      if (error.code === 'P2002') {
+        res.status(409).json({ error: 'A user with this email already exists' })
+        return
+      }
     }
     throw error
   }
