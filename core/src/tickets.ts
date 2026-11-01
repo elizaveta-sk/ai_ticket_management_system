@@ -1,5 +1,9 @@
 import { z } from 'zod'
 
+export type TicketStatus = 'open' | 'resolved' | 'closed'
+
+export type TicketCategory = 'general_question' | 'technical_question' | 'refund_request'
+
 // PostgreSQL text columns can't store NUL characters, which can appear in email.
 const removeNulls = (value: string) => value.replaceAll('\0', '')
 

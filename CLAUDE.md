@@ -17,6 +17,7 @@ Bun is the runtime and package manager (Bun workspaces: `client`, `server`, `cor
 - `bun --filter server typecheck`: typecheck the server
 - `bun --filter client lint`: lint the client (oxlint)
 - `bun --filter client test`: run the client component tests (Vitest and React Testing Library)
+- `bun --filter core test`: run the `core` unit tests (Vitest)
 - `cd client && bunx --bun shadcn@latest add <component>`: add a shadcn/ui component
 
 The server reads `server/.env` (copy from `server/.env.example`). Development uses a local PostgreSQL 18 on port 5433 with the `helpdesk` database.
@@ -53,7 +54,10 @@ No email provider is set up yet. `POST /api/webhooks/inbound-email` (`server/src
 
 ### Component and unit tests
 
-These cover the client only, using Vitest, jsdom and React Testing Library (setup in `client/src/test/setup.ts`). Write them in the main session. `client/src/pages/UsersPage.test.tsx` is the example to follow.
+Write these in the main session, using Vitest. Prefer them over e2e tests for anything that doesn't need the real server, such as schema validation.
+
+- **`core`:** plain function tests, with no extra setup. `core/src/tickets.test.ts` is the example to follow. Run with `bun --filter core test`.
+- **`client`:** component tests using jsdom and React Testing Library (setup in `client/src/test/setup.ts`). `client/src/pages/UsersPage.test.tsx` is the example to follow. The rules below are for these.
 
 - **Files:** put tests next to the code they cover, as `*.test.tsx` for components and `*.test.ts` for plain functions.
 - **Imports:** import `describe`, `it`, `expect` and `vi` from `vitest`, because globals are off.

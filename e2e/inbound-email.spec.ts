@@ -73,74 +73,17 @@ test.describe('POST /api/webhooks/inbound-email', () => {
     expect(after.status()).toBe(201)
   })
 
-  test.describe('validation', () => {
-    const cases: Array<[string, () => Email]> = [
-      ['missing messageId', () => {
-        const { messageId: _omit, ...rest } = validEmail()
-        return rest
-      }],
-      ['blank messageId', () => validEmail({ messageId: '   ' })],
-      ['missing from', () => {
-        const { from: _omit, ...rest } = validEmail()
-        return rest
-      }],
-      ['invalid from', () => validEmail({ from: 'not-an-email' })],
-    ]
+  test('rejects an email with no fromName and creates nothing', async ({ request }) => {
+    const { fromName: _omit, ...email } = validEmail()
 
-    for (const [name, build] of cases) {
-      test(`returns 400 for ${name}`, async ({ request }) => {
-        const res = await send(request, build())
-        expect(res.status()).toBe(400)
-        const body = await res.json()
-        expect(typeof body.error).toBe('string')
-        expect(body.error.length).toBeGreaterThan(0)
-      })
-    }
+    const res = await send(request, email)
+    expect(res.status()).toBe(400)
+    expect(await res.json()).toEqual({ error: 'fromName is required' })
+
+    const retry = await send(request, { ...email, fromName: 'Test Student' })
+    expect(retry.status()).toBe(201)
   })
 
-  test.describe('fromName is required', () => {
-    const cases: Array<[string, string | undefined]> = [
-      ['missing', undefined],
-      ['empty', ''],
-      ['whitespace only', '   \t  '],
-      ['only NUL characters', '\u0000\u0000\u0000'],
-      ['NUL characters and whitespace', ' \u0000 \u0000 '],
-    ]
-
-    for (const [name, value] of cases) {
-      test(`returns 400 for a ${name} fromName and creates nothing`, async ({ request }) => {
-        const email = validEmail()
-        if (value === undefined) delete email.fromName
-        else email.fromName = value
-
-        const res = await send(request, email)
-        expect(res.status()).toBe(400)
-        expect(await res.json()).toEqual({ error: 'fromName is required' })
-
-        const retry = await send(request, { ...email, fromName: 'Test Student' })
-        expect(retry.status()).toBe(201)
-      })
-    }
-  })
-
-  test('accepts an email with no subject and no text', async ({ request }) => {
-    const res = await send(request, {
-      messageId: `<${randomUUID()}@mail.example.com>`,
-      from: `student-${randomUUID()}@example.com`,
-      fromName: 'Test Student',
-    })
-    expect(res.status()).toBe(201)
-    expect((await res.json()).ticket.status).toBe('open')
-  })
-
-  test('accepts NUL characters in subject, text and fromName', async ({ request }) => {
-    const res = await send(
-      request,
-      validEmail({ subject: 'Hel\u0000lo', text: 'Body\u0000with\u0000nulls', fromName: 'Stu\u0000dent' }),
-    )
-    expect(res.status()).toBe(201)
-    expect((await res.json()).ticket.id).toBeGreaterThan(0)
-  })
 
   test('accepts a text of about 500kb, above the app-wide 100kb limit', async ({ request }) => {
     const res = await send(request, validEmail({ text: 'a'.repeat(500 * 1024) }))

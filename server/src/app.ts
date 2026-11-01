@@ -2,6 +2,7 @@ import { toNodeHandler } from 'better-auth/node'
 import express from 'express'
 import { auth } from './lib/auth.ts'
 import { prisma } from './lib/prisma.ts'
+import { ticketsRouter } from './routes/tickets.ts'
 import { usersRouter } from './routes/users.ts'
 import { webhooksRouter } from './routes/webhooks.ts'
 
@@ -16,6 +17,7 @@ app.use('/api/webhooks', webhooksRouter)
 app.use(express.json())
 
 app.use('/api', usersRouter)
+app.use('/api', ticketsRouter)
 
 app.get('/api/health', async (_req, res) => {
   try {
