@@ -5,8 +5,7 @@ import { Link, useParams } from 'react-router'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import TicketAssignee, { type Assignee } from '../components/TicketAssignee.tsx'
-import { TicketCategoryText, TicketStatusBadge } from '../components/TicketFields.tsx'
+import TicketControls, { type Assignee } from '../components/TicketControls.tsx'
 import type { Ticket } from '../components/TicketsTable.tsx'
 
 type TicketDetail = Ticket & { body: string; assignedTo: Assignee | null }
@@ -58,32 +57,35 @@ function TicketDetailPage() {
         </div>
       )}
       {ticket && (
-        <article>
-          <h1 className="mb-3 text-2xl font-bold wrap-anywhere">{ticket.subject}</h1>
-          <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-            <TicketStatusBadge status={ticket.status} />
-            <span>
-              <TicketCategoryText category={ticket.category} />
-            </span>
-          </div>
-          <div className="mb-4 text-sm">
-            <div className="font-medium wrap-anywhere">{ticket.senderName}</div>
-            <div className="text-muted-foreground wrap-anywhere">{ticket.senderEmail}</div>
-            <div className="text-muted-foreground">
-              {new Date(ticket.createdAt).toLocaleString()}
+        <article className="grid gap-6 md:grid-cols-[minmax(0,1fr)_16rem]">
+          <div>
+            <h1 className="mb-3 text-2xl font-bold wrap-anywhere">{ticket.subject}</h1>
+            <div className="mb-4 text-sm">
+              <div className="font-medium wrap-anywhere">{ticket.senderName}</div>
+              <div className="text-muted-foreground wrap-anywhere">{ticket.senderEmail}</div>
+              <div className="text-muted-foreground">
+                {new Date(ticket.createdAt).toLocaleString()}
+              </div>
             </div>
+            <Card>
+              <CardContent>
+                {ticket.body ? (
+                  // Emails are plain text, so keep their line breaks.
+                  <p className="wrap-anywhere whitespace-pre-wrap">{ticket.body}</p>
+                ) : (
+                  <p className="text-muted-foreground">This email has no message.</p>
+                )}
+              </CardContent>
+            </Card>
           </div>
-          <TicketAssignee ticketId={ticket.id} assignedTo={ticket.assignedTo} />
-          <Card>
-            <CardContent>
-              {ticket.body ? (
-                // Emails are plain text, so keep their line breaks.
-                <p className="wrap-anywhere whitespace-pre-wrap">{ticket.body}</p>
-              ) : (
-                <p className="text-muted-foreground">This email has no message.</p>
-              )}
-            </CardContent>
-          </Card>
+          <aside>
+            <TicketControls
+              ticketId={ticket.id}
+              status={ticket.status}
+              category={ticket.category}
+              assignedTo={ticket.assignedTo}
+            />
+          </aside>
         </article>
       )}
     </main>

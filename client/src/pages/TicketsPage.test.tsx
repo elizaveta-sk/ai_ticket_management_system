@@ -241,10 +241,10 @@ describe('TicketsPage', () => {
       await screen.findByRole('cell', { name: tickets[0].subject })
 
       expect(screen.getByRole('combobox', { name: 'Filter by status' })).toHaveTextContent(
-        'All statuses',
+        'All Statuses',
       )
       expect(screen.getByRole('combobox', { name: 'Filter by category' })).toHaveTextContent(
-        'All categories',
+        'All Categories',
       )
       expect(get.mock.calls[0][1]?.params).toEqual({ sortBy: 'createdAt', sortOrder: 'desc', page: 1, pageSize: 20 })
     })
@@ -277,7 +277,7 @@ describe('TicketsPage', () => {
 
       const options = await screen.findAllByRole('option')
       expect(options.map((option) => option.textContent)).toEqual([
-        'All categories',
+        'All Categories',
         'General Question',
         'Technical Question',
         'Refund Request',
@@ -387,7 +387,7 @@ describe('TicketsPage', () => {
       await choose('Filter by status', 'Closed')
       await waitFor(() => expect(get.mock.lastCall?.[1]?.params).toMatchObject({ status: 'closed' }))
       get.mockClear()
-      await choose('Filter by status', 'All statuses')
+      await choose('Filter by status', 'All Statuses')
 
       // Going back to a filter set that was already loaded may be served from the
       // cache, so this checks the request only if one was made.

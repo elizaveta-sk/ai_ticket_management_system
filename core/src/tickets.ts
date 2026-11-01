@@ -33,11 +33,22 @@ export const ticketIdSchema = z
   .transform(Number)
   .pipe(z.number().max(2_147_483_647))
 
-// The body of PATCH /api/tickets/:id. null removes the current assignee. PostgreSQL
-// rejects NUL characters outright, so they can't reach the query that looks up the agent.
-export const assignTicketSchema = z.strictObject({
-  assignedToId: z.string('Invalid assignee').regex(/^[^\0]+$/, 'Invalid assignee').nullable(),
-})
+// The body of PATCH /api/tickets/:id: whichever fields are changing. A null assignee
+// removes the current one, while a ticket's category can only change to another category.
+// PostgreSQL rejects NUL characters outright, so they can't reach the agent lookup.
+export const updateTicketSchema = z
+  .strictObject({
+    status: z.enum(['open', 'resolved', 'closed'], 'Invalid status').optional(),
+    category: z
+      .enum(['general_question', 'technical_question', 'refund_request'], 'Invalid category')
+      .optional(),
+    assignedToId: z
+      .string('Invalid assignee')
+      .regex(/^[^\0]+$/, 'Invalid assignee')
+      .nullable()
+      .optional(),
+  })
+  .refine((changes) => Object.keys(changes).length > 0, 'Nothing to update')
 
 export const ticketSearchMaxLength = 200
 export const ticketPageSize = 20

@@ -1,30 +1,38 @@
 import { describe, expect, it } from 'vitest'
 import {
-  assignTicketSchema,
   inboundEmailSchema,
   ticketIdSchema,
   ticketQuerySchema,
+  updateTicketSchema,
 } from './tickets.ts'
 
-describe('assignTicketSchema', () => {
-  it('accepts a user id', () => {
-    expect(assignTicketSchema.parse({ assignedToId: 'abc' })).toEqual({ assignedToId: 'abc' })
-  })
-
-  it('accepts null, which removes the assignee', () => {
-    expect(assignTicketSchema.parse({ assignedToId: null })).toEqual({ assignedToId: null })
+describe('updateTicketSchema', () => {
+  it.each([
+    ['a user id', { assignedToId: 'abc' }],
+    ['null, which removes the assignee', { assignedToId: null }],
+    ['a status', { status: 'closed' }],
+    ['a category', { category: 'refund_request' }],
+    ['several fields', { status: 'resolved', category: 'general_question', assignedToId: null }],
+  ])('accepts %s', (_label, input) => {
+    expect(updateTicketSchema.parse(input)).toEqual(input)
   })
 
   it.each([
-    ['a missing assignee', {}],
+    ['nothing to change', {}],
     ['a blank assignee', { assignedToId: '' }],
     ['a NUL character', { assignedToId: 'a\0b' }],
-    ['a number', { assignedToId: 1 }],
-    ['an array', { assignedToId: ['abc'] }],
-    ['other fields', { assignedToId: 'abc', status: 'closed' }],
+    ['a numeric assignee', { assignedToId: 1 }],
+    ['an array of assignees', { assignedToId: ['abc'] }],
+    ['an unknown status', { status: 'pending' }],
+    ['a null status', { status: null }],
+    ['an unknown category', { category: 'billing' }],
+    ['uncategorized, because a category cannot be removed', { category: 'uncategorized' }],
+    ['a null category', { category: null }],
+    ['other fields', { subject: 'New subject' }],
+    ['a valid field with other fields', { status: 'open', body: 'x' }],
     ['no body', undefined],
   ])('rejects %s', (_label, input) => {
-    expect(assignTicketSchema.safeParse(input).success).toBe(false)
+    expect(updateTicketSchema.safeParse(input).success).toBe(false)
   })
 })
 

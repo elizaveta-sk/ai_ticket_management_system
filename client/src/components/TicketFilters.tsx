@@ -13,14 +13,14 @@ export type TicketFilterValues = {
 type Item<T> = { value: T; label: string }
 
 const statusItems: Item<TicketFilterValues['status']>[] = [
-  { value: 'all', label: 'All statuses' },
+  { value: 'all', label: 'All Statuses' },
   { value: 'open', label: statusLabels.open },
   { value: 'resolved', label: statusLabels.resolved },
   { value: 'closed', label: statusLabels.closed },
 ]
 
 const categoryItems: Item<TicketFilterValues['category']>[] = [
-  { value: 'all', label: 'All categories' },
+  { value: 'all', label: 'All Categories' },
   { value: 'general_question', label: categoryLabels.general_question },
   { value: 'technical_question', label: categoryLabels.technical_question },
   { value: 'refund_request', label: categoryLabels.refund_request },

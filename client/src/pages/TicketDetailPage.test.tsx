@@ -68,8 +68,8 @@ describe('TicketDetailPage', () => {
 
     expect(await screen.findByRole('heading', { name: ticket.subject })).toBeInTheDocument()
     expect(get).toHaveBeenCalledWith('/api/tickets/2')
-    expect(screen.getByText('Resolved')).toBeInTheDocument()
-    expect(screen.getByText('Refund Request')).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Status' })).toHaveTextContent('Resolved')
+    expect(screen.getByRole('combobox', { name: 'Category' })).toHaveTextContent('Refund Request')
     expect(screen.getByText('Grace Student')).toBeInTheDocument()
     expect(screen.getByText('grace@example.com')).toBeInTheDocument()
     expect(screen.getByText(new Date(ticket.createdAt).toLocaleString())).toBeInTheDocument()
@@ -141,7 +141,7 @@ describe('TicketDetailPage', () => {
   })
 
   describe('assignee', () => {
-    const trigger = () => screen.getByRole('combobox', { name: 'Assigned to' })
+    const trigger = () => screen.getByRole('combobox', { name: 'Assigned To' })
 
     async function openChoices() {
       await waitFor(() => expect(trigger()).toBeEnabled())
@@ -300,7 +300,7 @@ describe('TicketDetailPage', () => {
       await screen.findByRole('heading', { name: ticket.subject })
       await choose('Ada Agent')
 
-      expect(await screen.findByRole('alert')).toHaveTextContent('Could not assign ticket')
+      expect(await screen.findByRole('alert')).toHaveTextContent('Could not update ticket')
     })
 
     it('still shows the assignee when the agents fail to load', async () => {
@@ -314,6 +314,131 @@ describe('TicketDetailPage', () => {
       expect(await screen.findByRole('alert')).toHaveTextContent('Could not load agents')
       expect(trigger()).toHaveTextContent('Bob Agent')
       expect(screen.getByRole('heading', { name: ticket.subject })).toBeInTheDocument()
+    })
+  })
+
+  describe('status and category', () => {
+    const select = (name: string) => screen.getByRole('combobox', { name })
+
+    async function choose(name: string, option: string) {
+      await waitFor(() => expect(select(name)).toBeEnabled())
+      fireEvent.click(select(name))
+      const item = await screen.findByRole('option', { name: option })
+      // Base UI ignores a mouse click on an option unless the press started on it.
+      fireEvent.pointerDown(item)
+      fireEvent.click(item)
+    }
+
+    async function optionsOf(name: string) {
+      await waitFor(() => expect(select(name)).toBeEnabled())
+      fireEvent.click(select(name))
+      const options = await screen.findAllByRole('option')
+      return options.map((option) => option.textContent)
+    }
+
+    it('offers the three statuses', async () => {
+      mockApi(ticket)
+
+      renderPage()
+      await screen.findByRole('heading', { name: ticket.subject })
+
+      expect(await optionsOf('Status')).toEqual(['Open', 'Resolved', 'Closed'])
+    })
+
+    it('offers the three categories to a categorized ticket, without Uncategorized', async () => {
+      mockApi(ticket)
+
+      renderPage()
+      await screen.findByRole('heading', { name: ticket.subject })
+
+      expect(await optionsOf('Category')).toEqual([
+        'General Question',
+        'Technical Question',
+        'Refund Request',
+      ])
+    })
+
+    it('shows Uncategorized as well while a ticket has no category', async () => {
+      mockApi({ ...ticket, category: null })
+
+      renderPage()
+      await screen.findByRole('heading', { name: ticket.subject })
+
+      expect(await optionsOf('Category')).toEqual([
+        'Uncategorized',
+        'General Question',
+        'Technical Question',
+        'Refund Request',
+      ])
+    })
+
+    it('saves only the status when the status changes', async () => {
+      mockApi(ticket, { ...ticket, status: 'closed' })
+      const patch = vi.spyOn(axios, 'patch').mockResolvedValue({ data: {} })
+
+      renderPage()
+      await screen.findByRole('heading', { name: ticket.subject })
+      await choose('Status', 'Closed')
+
+      await waitFor(() => expect(patch).toHaveBeenCalledWith('/api/tickets/2', { status: 'closed' }))
+      await waitFor(() => expect(select('Status')).toBeEnabled())
+      expect(select('Status')).toHaveTextContent('Closed')
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('saves only the category when the category changes', async () => {
+      mockApi(ticket, { ...ticket, category: 'general_question' })
+      const patch = vi.spyOn(axios, 'patch').mockResolvedValue({ data: {} })
+
+      renderPage()
+      await screen.findByRole('heading', { name: ticket.subject })
+      await choose('Category', 'General Question')
+
+      await waitFor(() =>
+        expect(patch).toHaveBeenCalledWith('/api/tickets/2', { category: 'general_question' }),
+      )
+      await waitFor(() => expect(select('Category')).toHaveTextContent('General Question'))
+    })
+
+    it('saves nothing when Uncategorized is chosen again', async () => {
+      mockApi({ ...ticket, category: null })
+      const patch = vi.spyOn(axios, 'patch').mockResolvedValue({ data: {} })
+
+      renderPage()
+      await screen.findByRole('heading', { name: ticket.subject })
+      await choose('Category', 'Uncategorized')
+
+      expect(select('Category')).toHaveTextContent('Uncategorized')
+      expect(patch).not.toHaveBeenCalled()
+    })
+
+    it('shows the choice and blocks every control while it saves', async () => {
+      mockApi(ticket)
+      vi.spyOn(axios, 'patch').mockReturnValue(new Promise(() => {}))
+
+      renderPage()
+      await screen.findByRole('heading', { name: ticket.subject })
+      await choose('Status', 'Closed')
+
+      await waitFor(() => expect(select('Status')).toBeDisabled())
+      expect(select('Status')).toHaveTextContent('Closed')
+      expect(select('Category')).toBeDisabled()
+      expect(select('Assigned To')).toBeDisabled()
+    })
+
+    it.each([
+      ['Status', 'Closed', 'Resolved'],
+      ['Category', 'General Question', 'Refund Request'],
+    ])('goes back to the saved %s and shows an error when saving fails', async (name, option, saved) => {
+      mockApi(ticket)
+      vi.spyOn(axios, 'patch').mockRejectedValue(new Error('Network Error'))
+
+      renderPage()
+      await screen.findByRole('heading', { name: ticket.subject })
+      await choose(name, option)
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Could not update ticket')
+      expect(select(name)).toHaveTextContent(saved)
     })
   })
 })

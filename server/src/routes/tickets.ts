@@ -1,4 +1,4 @@
-import { assignTicketSchema, ticketIdSchema, ticketQuerySchema } from 'core/tickets'
+import { ticketIdSchema, ticketQuerySchema, updateTicketSchema } from 'core/tickets'
 import { Router } from 'express'
 import { Prisma, Role } from '../generated/prisma/client.ts'
 import { prisma } from '../lib/prisma.ts'
@@ -76,21 +76,22 @@ ticketsRouter.get('/tickets/:id', requireAuth, async (req, res) => {
   res.json({ ticket })
 })
 
-// Admins and agents can both assign tickets, to any active agent.
+// Admins and agents can both update a ticket's status and category, and assign it
+// to any active agent. Only the fields sent are changed.
 ticketsRouter.patch('/tickets/:id', requireAuth, async (req, res) => {
   const id = ticketIdSchema.safeParse(req.params.id)
   if (!id.success) {
     res.status(404).json({ error: 'Ticket not found' })
     return
   }
-  const parsed = assignTicketSchema.safeParse(req.body)
+  const parsed = updateTicketSchema.safeParse(req.body)
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0].message })
     return
   }
 
-  const { assignedToId } = parsed.data
-  if (assignedToId !== null) {
+  const { status, category, assignedToId } = parsed.data
+  if (assignedToId) {
     const agent = await prisma.user.findFirst({
       where: { id: assignedToId, role: Role.agent, deletedAt: null },
       select: { id: true },
@@ -104,7 +105,7 @@ ticketsRouter.patch('/tickets/:id', requireAuth, async (req, res) => {
   try {
     const ticket = await prisma.ticket.update({
       where: { id: id.data },
-      data: { assignedToId },
+      data: { status, category, assignedToId },
       select: ticketDetailSelect,
     })
     res.json({ ticket })
