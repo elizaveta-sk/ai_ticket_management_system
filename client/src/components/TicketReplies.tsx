@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { createReplySchema, type CreateReplyInput, type TicketReply } from 'core/tickets'
-import { Controller, useForm } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -28,10 +28,11 @@ function ReplyForm({ ticketId }: { ticketId: number }) {
   })
   const polishReply = useMutation({
     mutationFn: (values: CreateReplyInput) =>
-      axios.post<{ body: string }>('/api/replies/polish', values),
+      axios.post<{ body: string }>(`/api/tickets/${ticketId}/replies/polish`, values),
     onSuccess: ({ data }) => setValue('body', data.body, { shouldValidate: true }),
   })
   const isBusy = addReply.isPending || polishReply.isPending
+  const isEmpty = !useWatch({ control, name: 'body' }).trim()
 
   return (
     <form
@@ -78,7 +79,7 @@ function ReplyForm({ ticketId }: { ticketId: number }) {
           <Button
             type="button"
             variant="outline"
-            disabled={isBusy}
+            disabled={isBusy || isEmpty}
             onClick={handleSubmit((values) => {
               addReply.reset()
               polishReply.mutate(values)
@@ -86,7 +87,7 @@ function ReplyForm({ ticketId }: { ticketId: number }) {
           >
             {polishReply.isPending ? 'Polishing...' : 'Polish'}
           </Button>
-          <Button type="submit" disabled={isBusy}>
+          <Button type="submit" disabled={isBusy || isEmpty}>
             {addReply.isPending ? 'Sending...' : 'Send reply'}
           </Button>
         </div>

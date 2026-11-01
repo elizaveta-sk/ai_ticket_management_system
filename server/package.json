@@ -11,7 +11,8 @@
     "db:migrate": "bunx --bun prisma migrate dev",
     "db:seed": "bun prisma/seed.ts",
     "db:seed:tickets": "bun prisma/seed-demo-tickets.ts",
-    "db:studio": "bunx --bun prisma studio"
+    "db:studio": "bunx --bun prisma studio",
+    "test": "vitest run"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.106",
@@ -27,6 +28,7 @@
     "@types/bun": "^1.4.4",
     "@types/express": "^5.0.6",
     "prisma": "7.10.1",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
   }
 }

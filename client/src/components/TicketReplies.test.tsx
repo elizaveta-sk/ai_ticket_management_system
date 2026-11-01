@@ -130,18 +130,35 @@ describe('TicketReplies', () => {
       )
     })
 
-    it.each([
-      ['an empty reply', ''],
-      ['a reply of only whitespace', ' \n '],
-    ])('does not send %s', async (_label, text) => {
-      const post = vi.spyOn(axios, 'post').mockResolvedValue({ data: {} })
+    it('disables sending and polishing until there is a reply', () => {
+      renderReplies()
+
+      expect(sendButton()).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Polish' })).toBeDisabled()
+
+      fireEvent.change(replyBox(), { target: { value: 'Hello' } })
+
+      expect(sendButton()).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'Polish' })).toBeEnabled()
+    })
+
+    it('disables sending and polishing for a reply of only whitespace, with no error', () => {
+      renderReplies()
+      fireEvent.change(replyBox(), { target: { value: ' \n ' } })
+
+      expect(sendButton()).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Polish' })).toBeDisabled()
+      expect(screen.queryByText('Reply is required')).not.toBeInTheDocument()
+    })
+
+    it('disables sending again once the reply is sent', async () => {
+      vi.spyOn(axios, 'post').mockResolvedValue({ data: {} })
 
       renderReplies()
-      send(text)
+      send('Hello')
 
-      expect(await screen.findByText('Reply is required')).toBeInTheDocument()
-      expect(replyBox()).toHaveAttribute('aria-invalid', 'true')
-      expect(post).not.toHaveBeenCalled()
+      await waitFor(() => expect(replyBox()).toHaveValue(''))
+      expect(sendButton()).toBeDisabled()
     })
 
     it('does not send a reply over the maximum length', async () => {
@@ -157,12 +174,14 @@ describe('TicketReplies', () => {
     })
 
     it('removes the validation message once the reply is valid', async () => {
+      const tooLong = `Reply must be at most ${ticketReplyMaxLength} characters`
+
       renderReplies()
-      send('')
-      await screen.findByText('Reply is required')
+      send('a'.repeat(ticketReplyMaxLength + 1))
+      await screen.findByText(tooLong)
       fireEvent.change(replyBox(), { target: { value: 'Hello' } })
 
-      await waitFor(() => expect(screen.queryByText('Reply is required')).not.toBeInTheDocument())
+      await waitFor(() => expect(screen.queryByText(tooLong)).not.toBeInTheDocument())
       expect(replyBox()).toHaveAttribute('aria-invalid', 'false')
     })
 
@@ -240,7 +259,7 @@ describe('TicketReplies', () => {
 
       await waitFor(() => expect(replyBox()).toHaveValue('Your refund has been issued.'))
       expect(post).toHaveBeenCalledTimes(1)
-      expect(post).toHaveBeenCalledWith('/api/replies/polish', { body: 'refund done' })
+      expect(post).toHaveBeenCalledWith('/api/tickets/2/replies/polish', { body: 'refund done' })
       expect(replyBox()).not.toHaveAttribute('readonly')
       expect(sendButton()).toBeEnabled()
     })
@@ -260,16 +279,6 @@ describe('TicketReplies', () => {
       expect(post).toHaveBeenLastCalledWith('/api/tickets/2/replies', {
         body: 'Your refund has been issued.',
       })
-    })
-
-    it('does not polish an empty draft', async () => {
-      const post = vi.spyOn(axios, 'post').mockResolvedValue({ data: {} })
-
-      renderReplies()
-      polish(' \n ')
-
-      expect(await screen.findByText('Reply is required')).toBeInTheDocument()
-      expect(post).not.toHaveBeenCalled()
     })
 
     it('blocks sending, polishing and typing while it polishes', async () => {
@@ -308,6 +317,38 @@ describe('TicketReplies', () => {
       expect(replyBox()).toHaveValue('Hello')
       expect(replyBox()).not.toHaveAttribute('readonly')
       expect(polishButton()).toBeEnabled()
+    })
+
+    it('shows the rate limit message and lets the agent keep the draft', async () => {
+      vi.spyOn(axios, 'post').mockRejectedValue(
+        serverError(429, 'Too many requests. Please try again shortly.'),
+      )
+
+      renderReplies()
+      polish('Hello')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Too many requests. Please try again shortly.',
+      )
+      expect(replyBox()).toHaveValue('Hello')
+      expect(sendButton()).toBeEnabled()
+    })
+
+    it('polishes the box as it stands when polished again', async () => {
+      const post = vi
+        .spyOn(axios, 'post')
+        .mockResolvedValueOnce({ data: { body: 'Hi Grace,\n\nDone.' } })
+        .mockResolvedValueOnce({ data: { body: 'Hi Grace,\n\nAll done.' } })
+
+      renderReplies()
+      polish('done')
+      await waitFor(() => expect(replyBox()).toHaveValue('Hi Grace,\n\nDone.'))
+      fireEvent.click(polishButton())
+
+      await waitFor(() => expect(replyBox()).toHaveValue('Hi Grace,\n\nAll done.'))
+      expect(post).toHaveBeenLastCalledWith('/api/tickets/2/replies/polish', {
+        body: 'Hi Grace,\n\nDone.',
+      })
     })
 
     it('shows a general message when polishing fails without a server message', async () => {

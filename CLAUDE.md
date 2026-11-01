@@ -19,6 +19,7 @@ Bun is the runtime and package manager (Bun workspaces: `client`, `server`, `cor
 - `bun --filter client lint`: lint the client (oxlint)
 - `bun --filter client test`: run the client component tests (Vitest and React Testing Library)
 - `bun --filter core test`: run the `core` unit tests (Vitest)
+- `bun --filter server test`: run the server unit tests (Vitest), which mock the database and the model
 - `cd client && bunx --bun shadcn@latest add <component>`: add a shadcn/ui component
 
 The server reads `server/.env` (copy from `server/.env.example`). Development uses a local PostgreSQL 18 on port 5433 with the `helpdesk` database.
@@ -59,6 +60,7 @@ No email provider is set up yet. `POST /api/webhooks/inbound-email` (`server/src
 Write these in the main session, using Vitest. Prefer them over e2e tests for anything that doesn't need the real server, such as schema validation.
 
 - **`core`:** plain function tests, with no extra setup. `core/src/tickets.test.ts` is the example to follow. Run with `bun --filter core test`.
+- **`server`:** route and middleware tests with the database, session and model mocked. `server/src/routes/tickets.polish.test.ts` is the example to follow. They can't check real access rules or database behaviour, which stay in the e2e tests. Run with `bun --filter server test`.
 - **`client`:** component tests using jsdom and React Testing Library (setup in `client/src/test/setup.ts`). `client/src/pages/UsersPage.test.tsx` is the example to follow. The rules below are for these.
 
 - **Files:** put tests next to the code they cover, as `*.test.tsx` for components and `*.test.ts` for plain functions.
@@ -103,4 +105,4 @@ Use Context7 to fetch up-to-date documentation for libraries and tools (Bun, Exp
 - Client API calls use axios inside TanStack Query (`useQuery`, and `useMutation` for writes), not `fetch` or `useEffect`. Authentication is the exception and goes through `authClient`.
 - All client forms use React Hook Form (`useForm`, `Controller`) with a Zod schema through `zodResolver`, not hand-written state or validation. See `client/src/components/CreateUserForm.tsx`.
 - Define Zod schemas in the `core` package and import them in both client and server, rather than defining them in either one, so both validate with the same rules. See `core/src/users.ts`, used by `CreateUserForm.tsx` and `server/src/routes/users.ts`.
-- AI features (classification, summaries, suggested replies) use the Claude API. Polishing a draft reply is the exception: `POST /api/replies/polish` uses OpenAI `gpt-5-nano` through the Vercel AI SDK (`server/src/lib/polish-reply.ts`). It needs `OPENAI_API_KEY` in `server/.env` and returns 503 without it. It is limited to 10 requests per minute per user in every environment, using in-memory counters (`server/src/middleware/rate-limit-per-user.ts`), and returns 429 over that.
+- AI features (classification, summaries, suggested replies) use the Claude API. Polishing a draft reply is the exception: `POST /api/tickets/:id/replies/polish` uses OpenAI `gpt-5-nano` through the Vercel AI SDK (`server/src/lib/polish-reply.ts`). The model returns the greeting, message and sign-off separately, and `formatPolishedReply` (`core/src/polished-reply.ts`) removes any greeting or sign-off left in the message and adds the ticket sender's first name and the signed-in user's name, so a name from an email never reaches the model. It needs `OPENAI_API_KEY` in `server/.env` and returns 503 without it. It is limited to 10 requests per minute per user in every environment, using in-memory counters (`server/src/middleware/rate-limit-per-user.ts`), and returns 429 over that.
