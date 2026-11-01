@@ -5,10 +5,11 @@ import { Link, useParams } from 'react-router'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import TicketAssignee, { type Assignee } from '../components/TicketAssignee.tsx'
 import { TicketCategoryText, TicketStatusBadge } from '../components/TicketFields.tsx'
 import type { Ticket } from '../components/TicketsTable.tsx'
 
-type TicketDetail = Ticket & { body: string }
+type TicketDetail = Ticket & { body: string; assignedTo: Assignee | null }
 
 // Resolves to null when there is no such ticket, because retrying can't help then.
 async function fetchTicket(id: string) {
@@ -72,6 +73,7 @@ function TicketDetailPage() {
               {new Date(ticket.createdAt).toLocaleString()}
             </div>
           </div>
+          <TicketAssignee ticketId={ticket.id} assignedTo={ticket.assignedTo} />
           <Card>
             <CardContent>
               {ticket.body ? (

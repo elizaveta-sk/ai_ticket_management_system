@@ -1,8 +1,20 @@
-import { ticketIdSchema, ticketQuerySchema } from 'core/tickets'
+import { assignTicketSchema, ticketIdSchema, ticketQuerySchema } from 'core/tickets'
 import { Router } from 'express'
-import type { Prisma } from '../generated/prisma/client.ts'
+import { Prisma, Role } from '../generated/prisma/client.ts'
 import { prisma } from '../lib/prisma.ts'
 import { requireAuth } from '../middleware/require-auth.ts'
+
+const ticketDetailSelect = {
+  id: true,
+  subject: true,
+  senderName: true,
+  senderEmail: true,
+  status: true,
+  category: true,
+  createdAt: true,
+  body: true,
+  assignedTo: { select: { id: true, name: true } },
+} as const
 
 export const ticketsRouter = Router()
 
@@ -55,23 +67,52 @@ ticketsRouter.get('/tickets', requireAuth, async (req, res) => {
 ticketsRouter.get('/tickets/:id', requireAuth, async (req, res) => {
   const id = ticketIdSchema.safeParse(req.params.id)
   const ticket = id.success
-    ? await prisma.ticket.findUnique({
-        where: { id: id.data },
-        select: {
-          id: true,
-          subject: true,
-          senderName: true,
-          senderEmail: true,
-          status: true,
-          category: true,
-          createdAt: true,
-          body: true,
-        },
-      })
+    ? await prisma.ticket.findUnique({ where: { id: id.data }, select: ticketDetailSelect })
     : null
   if (!ticket) {
     res.status(404).json({ error: 'Ticket not found' })
     return
   }
   res.json({ ticket })
+})
+
+// Admins and agents can both assign tickets, to any active agent.
+ticketsRouter.patch('/tickets/:id', requireAuth, async (req, res) => {
+  const id = ticketIdSchema.safeParse(req.params.id)
+  if (!id.success) {
+    res.status(404).json({ error: 'Ticket not found' })
+    return
+  }
+  const parsed = assignTicketSchema.safeParse(req.body)
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0].message })
+    return
+  }
+
+  const { assignedToId } = parsed.data
+  if (assignedToId !== null) {
+    const agent = await prisma.user.findFirst({
+      where: { id: assignedToId, role: Role.agent, deletedAt: null },
+      select: { id: true },
+    })
+    if (!agent) {
+      res.status(400).json({ error: 'That agent is no longer available' })
+      return
+    }
+  }
+
+  try {
+    const ticket = await prisma.ticket.update({
+      where: { id: id.data },
+      data: { assignedToId },
+      select: ticketDetailSelect,
+    })
+    res.json({ ticket })
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      res.status(404).json({ error: 'Ticket not found' })
+      return
+    }
+    throw error
+  }
 })

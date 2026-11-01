@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import axios from 'axios'
 import { Route, Routes } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
@@ -14,6 +14,22 @@ const ticket = {
   category: 'refund_request',
   createdAt: '2026-03-02T12:00:00.000Z',
   body: 'Hello,\n\nPlease refund my course.',
+  assignedTo: null as { id: string; name: string } | null,
+}
+
+const agents = [
+  { id: 'agent-1', name: 'Ada Agent' },
+  { id: 'agent-2', name: 'Bob Agent' },
+]
+
+// Answers each API call with its own data. Later tickets answer later requests.
+function mockApi(...tickets: object[]) {
+  let ticketRequests = 0
+  return vi.spyOn(axios, 'get').mockImplementation(async (url) => {
+    if (url === '/api/agents') return { data: { agents } }
+    const index = Math.min(ticketRequests++, tickets.length - 1)
+    return { data: { ticket: tickets[index] } }
+  })
 }
 
 function renderPage(id = '2') {
@@ -46,7 +62,7 @@ describe('TicketDetailPage', () => {
   })
 
   it('requests the ticket in the URL and shows its details', async () => {
-    const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { ticket } })
+    const get = mockApi(ticket)
 
     renderPage()
 
@@ -61,7 +77,7 @@ describe('TicketDetailPage', () => {
   })
 
   it('keeps the line breaks in the message', async () => {
-    vi.spyOn(axios, 'get').mockResolvedValue({ data: { ticket } })
+    mockApi(ticket)
 
     renderPage()
 
@@ -72,7 +88,7 @@ describe('TicketDetailPage', () => {
 
   it('shows markup in a message as text', async () => {
     const body = '<img src=x onerror=alert(1)> hello'
-    vi.spyOn(axios, 'get').mockResolvedValue({ data: { ticket: { ...ticket, body } } })
+    mockApi({ ...ticket, body })
 
     renderPage()
 
@@ -81,7 +97,7 @@ describe('TicketDetailPage', () => {
   })
 
   it('shows Uncategorized for a ticket without a category', async () => {
-    vi.spyOn(axios, 'get').mockResolvedValue({ data: { ticket: { ...ticket, category: null } } })
+    mockApi({ ...ticket, category: null })
 
     renderPage()
 
@@ -89,7 +105,7 @@ describe('TicketDetailPage', () => {
   })
 
   it('says so when the email has no message', async () => {
-    vi.spyOn(axios, 'get').mockResolvedValue({ data: { ticket: { ...ticket, body: '' } } })
+    mockApi({ ...ticket, body: '' })
 
     renderPage()
 
@@ -122,5 +138,182 @@ describe('TicketDetailPage', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load ticket')
     expect(screen.queryByText('Ticket not found.')).not.toBeInTheDocument()
+  })
+
+  describe('assignee', () => {
+    const trigger = () => screen.getByRole('combobox', { name: 'Assigned to' })
+
+    async function openChoices() {
+      await waitFor(() => expect(trigger()).toBeEnabled())
+      fireEvent.click(trigger())
+    }
+
+    async function choose(option: string) {
+      await openChoices()
+      const item = await screen.findByRole('option', { name: option })
+      // Base UI ignores a mouse click on an option unless the press started on it.
+      fireEvent.pointerDown(item)
+      fireEvent.click(item)
+    }
+
+    it('shows Unassigned for a ticket with no assignee', async () => {
+      mockApi(ticket)
+
+      renderPage()
+
+      await screen.findByRole('heading', { name: ticket.subject })
+      expect(trigger()).toHaveTextContent('Unassigned')
+    })
+
+    it('shows the current assignee', async () => {
+      mockApi({ ...ticket, assignedTo: agents[1] })
+
+      renderPage()
+
+      await screen.findByRole('heading', { name: ticket.subject })
+      expect(trigger()).toHaveTextContent('Bob Agent')
+    })
+
+    it('offers Unassigned and every agent', async () => {
+      mockApi(ticket)
+
+      renderPage()
+      await screen.findByRole('heading', { name: ticket.subject })
+      await openChoices()
+
+      const options = await screen.findAllByRole('option')
+      expect(options.map((option) => option.textContent)).toEqual([
+        'Unassigned',
+        'Ada Agent',
+        'Bob Agent',
+      ])
+    })
+
+    it('saves the chosen agent and shows them once saved', async () => {
+      mockApi(ticket, { ...ticket, assignedTo: agents[0] })
+      const patch = vi.spyOn(axios, 'patch').mockResolvedValue({ data: {} })
+
+      renderPage()
+      await screen.findByRole('heading', { name: ticket.subject })
+      await choose('Ada Agent')
+
+      await waitFor(() =>
+        expect(patch).toHaveBeenCalledWith('/api/tickets/2', { assignedToId: 'agent-1' }),
+      )
+      await waitFor(() => expect(trigger()).toBeEnabled())
+      expect(trigger()).toHaveTextContent('Ada Agent')
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('sends null when Unassigned is chosen', async () => {
+      mockApi({ ...ticket, assignedTo: agents[0] }, ticket)
+      const patch = vi.spyOn(axios, 'patch').mockResolvedValue({ data: {} })
+
+      renderPage()
+      await screen.findByRole('heading', { name: ticket.subject })
+      await choose('Unassigned')
+
+      await waitFor(() =>
+        expect(patch).toHaveBeenCalledWith('/api/tickets/2', { assignedToId: null }),
+      )
+      await waitFor(() => expect(trigger()).toHaveTextContent('Unassigned'))
+    })
+
+    it('shows the choice and blocks changes while it saves', async () => {
+      mockApi(ticket)
+      vi.spyOn(axios, 'patch').mockReturnValue(new Promise(() => {}))
+
+      renderPage()
+      await screen.findByRole('heading', { name: ticket.subject })
+      await choose('Ada Agent')
+
+      await waitFor(() => expect(trigger()).toBeDisabled())
+      expect(trigger()).toHaveTextContent('Ada Agent')
+    })
+
+    it('shows the server error and goes back to the saved assignee when saving fails', async () => {
+      mockApi(ticket)
+      vi.spyOn(axios, 'patch').mockRejectedValue(
+        Object.assign(new Error('Request failed with status code 400'), {
+          isAxiosError: true,
+          response: { status: 400, data: { error: 'That agent is no longer available' } },
+        }),
+      )
+
+      renderPage()
+      await screen.findByRole('heading', { name: ticket.subject })
+      await choose('Ada Agent')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'That agent is no longer available',
+      )
+      expect(trigger()).toHaveTextContent('Unassigned')
+    })
+
+    it('cannot be changed until the agents have loaded', async () => {
+      vi.spyOn(axios, 'get').mockImplementation((url) =>
+        url === '/api/agents' ? new Promise(() => {}) : Promise.resolve({ data: { ticket } }),
+      )
+
+      renderPage()
+      await screen.findByRole('heading', { name: ticket.subject })
+
+      expect(trigger()).toBeDisabled()
+    })
+
+    it('keeps an assignee who is no longer in the agent list', async () => {
+      const former = { id: 'agent-9', name: 'Former Agent' }
+      mockApi({ ...ticket, assignedTo: former })
+
+      renderPage()
+      await screen.findByRole('heading', { name: ticket.subject })
+      expect(trigger()).toHaveTextContent('Former Agent')
+      await openChoices()
+
+      const options = await screen.findAllByRole('option')
+      expect(options.map((option) => option.textContent)).toEqual([
+        'Unassigned',
+        'Ada Agent',
+        'Bob Agent',
+        'Former Agent',
+      ])
+    })
+
+    it('reloads the agents when saving fails, so a deleted agent stops being offered', async () => {
+      const get = mockApi(ticket)
+      vi.spyOn(axios, 'patch').mockRejectedValue(new Error('Request failed'))
+
+      renderPage()
+      await screen.findByRole('heading', { name: ticket.subject })
+      await choose('Ada Agent')
+      await screen.findByRole('alert')
+
+      const agentRequests = get.mock.calls.filter(([url]) => url === '/api/agents')
+      expect(agentRequests).toHaveLength(2)
+    })
+
+    it('shows a general message when saving fails without a server message', async () => {
+      mockApi(ticket)
+      vi.spyOn(axios, 'patch').mockRejectedValue(new Error('Network Error'))
+
+      renderPage()
+      await screen.findByRole('heading', { name: ticket.subject })
+      await choose('Ada Agent')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Could not assign ticket')
+    })
+
+    it('still shows the assignee when the agents fail to load', async () => {
+      vi.spyOn(axios, 'get').mockImplementation(async (url) => {
+        if (url === '/api/agents') throw new Error('Request failed with status code 500')
+        return { data: { ticket: { ...ticket, assignedTo: agents[1] } } }
+      })
+
+      renderPage()
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Could not load agents')
+      expect(trigger()).toHaveTextContent('Bob Agent')
+      expect(screen.getByRole('heading', { name: ticket.subject })).toBeInTheDocument()
+    })
   })
 })

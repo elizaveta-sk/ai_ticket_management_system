@@ -33,6 +33,12 @@ export const ticketIdSchema = z
   .transform(Number)
   .pipe(z.number().max(2_147_483_647))
 
+// The body of PATCH /api/tickets/:id. null removes the current assignee. PostgreSQL
+// rejects NUL characters outright, so they can't reach the query that looks up the agent.
+export const assignTicketSchema = z.strictObject({
+  assignedToId: z.string('Invalid assignee').regex(/^[^\0]+$/, 'Invalid assignee').nullable(),
+})
+
 export const ticketSearchMaxLength = 200
 export const ticketPageSize = 20
 

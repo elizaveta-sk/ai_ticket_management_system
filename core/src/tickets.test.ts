@@ -1,5 +1,32 @@
 import { describe, expect, it } from 'vitest'
-import { inboundEmailSchema, ticketIdSchema, ticketQuerySchema } from './tickets.ts'
+import {
+  assignTicketSchema,
+  inboundEmailSchema,
+  ticketIdSchema,
+  ticketQuerySchema,
+} from './tickets.ts'
+
+describe('assignTicketSchema', () => {
+  it('accepts a user id', () => {
+    expect(assignTicketSchema.parse({ assignedToId: 'abc' })).toEqual({ assignedToId: 'abc' })
+  })
+
+  it('accepts null, which removes the assignee', () => {
+    expect(assignTicketSchema.parse({ assignedToId: null })).toEqual({ assignedToId: null })
+  })
+
+  it.each([
+    ['a missing assignee', {}],
+    ['a blank assignee', { assignedToId: '' }],
+    ['a NUL character', { assignedToId: 'a\0b' }],
+    ['a number', { assignedToId: 1 }],
+    ['an array', { assignedToId: ['abc'] }],
+    ['other fields', { assignedToId: 'abc', status: 'closed' }],
+    ['no body', undefined],
+  ])('rejects %s', (_label, input) => {
+    expect(assignTicketSchema.safeParse(input).success).toBe(false)
+  })
+})
 
 describe('ticketIdSchema', () => {
   it('reads a number from URL text', () => {

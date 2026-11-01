@@ -30,35 +30,40 @@ enum TicketCategory {
 }
 
 model Ticket {
-  id          Int            @id @default(autoincrement())
+  id           Int             @id @default(autoincrement())
   // The email's Message-ID. Unique so a webhook delivered twice creates one ticket.
-  messageId   String         @unique
-  senderEmail String
-  senderName  String
-  subject     String
-  body        String
-  status      TicketStatus   @default(open)
+  messageId    String          @unique
+  senderEmail  String
+  senderName   String
+  subject      String
+  body         String
+  status       TicketStatus    @default(open)
   // Empty until the ticket is classified.
-  category    TicketCategory?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  category     TicketCategory?
+  // The agent handling this ticket. Empty until someone is assigned.
+  assignedToId String?
+  assignedTo   User?           @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
 
+  @@index([assignedToId])
   @@map("ticket")
 }
 
 model User {
-  id            String    @id
-  name          String
-  email         String
-  emailVerified Boolean   @default(false)
-  image         String?
-  role          Role      @default(agent)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  deletedAt     DateTime?
-  deletedEmail  String?
-  sessions      Session[]
-  accounts      Account[]
+  id              String    @id
+  name            String
+  email           String
+  emailVerified   Boolean   @default(false)
+  image           String?
+  role            Role      @default(agent)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  deletedEmail    String?
+  sessions        Session[]
+  accounts        Account[]
+  assignedTickets Ticket[]
 
   @@unique([email])
   @@map("user")

@@ -25,6 +25,17 @@ usersRouter.get('/users', requireAuth, requireRole(Role.admin), async (_req, res
   res.json({ users })
 })
 
+// The agents a ticket can be assigned to. Any signed-in user can read these, unlike
+// /users, so this returns only what the assignee list shows.
+usersRouter.get('/agents', requireAuth, async (_req, res) => {
+  const agents = await prisma.user.findMany({
+    where: { role: Role.agent, deletedAt: null },
+    select: { id: true, name: true },
+    orderBy: [{ name: 'asc' }, { id: 'asc' }],
+  })
+  res.json({ agents })
+})
+
 // Sign-up is disabled, so write the user and credential account directly.
 // Always creates an agent: the admin is the only admin account.
 usersRouter.post('/users', requireAuth, requireRole(Role.admin), async (req, res) => {
@@ -127,6 +138,7 @@ usersRouter.put('/users/:id', requireAuth, requireRole(Role.admin), async (req, 
 
 // Soft delete: the row stays, and the email moves to deletedEmail so it can be
 // reused. The session hook in lib/auth.ts stops the placeholder email signing in.
+// Their tickets go back to being unassigned, so nobody is left waiting on them.
 usersRouter.delete('/users/:id', requireAuth, requireRole(Role.admin), async (req, res) => {
   const id = req.params.id as string
   const user = await prisma.user.findFirst({ where: { id, deletedAt: null } })
@@ -149,6 +161,7 @@ usersRouter.delete('/users/:id', requireAuth, requireRole(Role.admin), async (re
       },
     }),
     prisma.session.deleteMany({ where: { userId: id } }),
+    prisma.ticket.updateMany({ where: { assignedToId: id }, data: { assignedToId: null } }),
   ])
   res.status(204).end()
 })
