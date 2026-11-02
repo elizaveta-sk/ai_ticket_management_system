@@ -146,6 +146,27 @@ describe('PATCH /api/tickets/:id resolution time', () => {
     expect(saved()).toEqual({ status: 'open', resolvedByAi: false, resolvedAt: null })
   })
 
+  it('unassigns the AI agent when a ticket is reopened', async () => {
+    vi.mocked(prisma.ticket.findUnique).mockResolvedValue({ assignedToId: 'jane-ai' } as never)
+
+    await patch('open')
+
+    expect(saved()).toEqual({
+      status: 'open',
+      resolvedByAi: false,
+      resolvedAt: null,
+      assignedToId: null,
+    })
+  })
+
+  it('keeps another assignee when a ticket is reopened', async () => {
+    vi.mocked(prisma.ticket.findUnique).mockResolvedValue({ assignedToId: 'agent-1' } as never)
+
+    await patch('open')
+
+    expect(saved()).toEqual({ status: 'open', resolvedByAi: false, resolvedAt: null })
+  })
+
   it('keeps the time when a ticket is closed', async () => {
     await patch('closed')
 

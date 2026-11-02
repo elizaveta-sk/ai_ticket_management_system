@@ -4,9 +4,11 @@ import { generateText, Output } from 'ai'
 import { formatAutoReply, isSafeAutoAnswer, knowledgeBaseAnswerSchema } from 'core/auto-resolve'
 import { SenderType, TicketCategory, TicketStatus } from '../generated/prisma/client.ts'
 import type { Prisma, Ticket } from '../generated/prisma/client.ts'
+import { aiAgentId } from './ai-agent.ts'
 import { isEmailConfigured, missingEmailSettings, sendEmail } from './email.ts'
 import { isOpenAIConfigured } from './openai.ts'
 import { prisma } from './prisma.ts'
+import { replyAddressFor } from './reply-address.ts'
 import { moveTicketQuery } from './ticket-state.ts'
 
 const instructions = `You answer support emails sent by students to an online course provider, using only the knowledge base below.
@@ -73,11 +75,12 @@ function leaveForAgent(id: number, reason: string) {
   return false
 }
 
-// A ticket in processing that nobody has touched, because a person's work always wins.
+// A ticket in processing that nobody has touched, because a person's work always wins. It's
+// unassigned rather than assigned to the AI agent only if that agent hasn't been seeded.
 const untouched = (id: number): Prisma.TicketWhereInput => ({
   id,
   status: TicketStatus.processing,
-  assignedToId: null,
+  OR: [{ assignedToId: null }, { assignedToId: aiAgentId }],
   replies: { none: {} },
 })
 
@@ -133,6 +136,7 @@ export async function autoResolveTicket(
       // Fixed, so that nobody can send their own subject line to someone else through this.
       subject: 'Your support request',
       text: reply,
+      replyTo: replyAddressFor(ticket.id),
       automated: true,
     })
     await prisma.$transaction([

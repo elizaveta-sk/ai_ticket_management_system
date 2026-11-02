@@ -10,6 +10,7 @@
     "db:generate": "bunx --bun prisma generate",
     "db:migrate": "bunx --bun prisma migrate dev",
     "db:seed": "bun prisma/seed.ts",
+    "db:seed:ai-agent": "bun prisma/seed-ai-agent.ts",
     "db:seed:tickets": "bun prisma/seed-demo-tickets.ts",
     "db:seed:replies": "bun prisma/seed-ticket-replies.ts",
     "db:studio": "bunx --bun prisma studio",

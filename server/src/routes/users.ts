@@ -3,6 +3,7 @@ import { hashPassword } from 'better-auth/crypto'
 import { createUserSchema, updateUserSchema } from 'core/users'
 import { Router } from 'express'
 import { Prisma, Role } from '../generated/prisma/client.ts'
+import { aiAgentId } from '../lib/ai-agent.ts'
 import { prisma } from '../lib/prisma.ts'
 import { requireAuth } from '../middleware/require-auth.ts'
 import { requireRole } from '../middleware/require-role.ts'
@@ -18,7 +19,7 @@ usersRouter.get('/me', requireAuth, (req, res) => {
 
 usersRouter.get('/users', requireAuth, requireRole(Role.admin), async (_req, res) => {
   const users = await prisma.user.findMany({
-    where: { deletedAt: null },
+    where: { deletedAt: null, id: { not: aiAgentId } },
     select: userSelect,
     orderBy: { createdAt: 'asc' },
   })
@@ -29,7 +30,7 @@ usersRouter.get('/users', requireAuth, requireRole(Role.admin), async (_req, res
 // /users, so this returns only what the assignee list shows.
 usersRouter.get('/agents', requireAuth, async (_req, res) => {
   const agents = await prisma.user.findMany({
-    where: { role: Role.agent, deletedAt: null },
+    where: { role: Role.agent, deletedAt: null, id: { not: aiAgentId } },
     select: { id: true, name: true },
     orderBy: [{ name: 'asc' }, { id: 'asc' }],
   })
@@ -87,6 +88,11 @@ usersRouter.put('/users/:id', requireAuth, requireRole(Role.admin), async (req, 
   const { name, email, password } = parsed.data
   // Express types params as string | string[], but a named segment is always a string.
   const id = req.params.id as string
+  // A password would let someone sign in as the AI agent.
+  if (id === aiAgentId) {
+    res.status(404).json({ error: 'User not found' })
+    return
+  }
   const passwordHash = password ? await hashPassword(password) : undefined
   try {
     const user = await prisma.$transaction(async (tx) => {
@@ -141,7 +147,8 @@ usersRouter.put('/users/:id', requireAuth, requireRole(Role.admin), async (req, 
 // Their tickets go back to being unassigned, so nobody is left waiting on them.
 usersRouter.delete('/users/:id', requireAuth, requireRole(Role.admin), async (req, res) => {
   const id = req.params.id as string
-  const user = await prisma.user.findFirst({ where: { id, deletedAt: null } })
+  const user =
+    id === aiAgentId ? null : await prisma.user.findFirst({ where: { id, deletedAt: null } })
   if (!user) {
     res.status(404).json({ error: 'User not found' })
     return

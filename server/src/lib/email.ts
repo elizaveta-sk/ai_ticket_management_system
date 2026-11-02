@@ -19,6 +19,8 @@ export async function sendEmail(email: {
   to: string
   subject: string
   text: string
+  // Where the student's answer goes. Without one, it goes to EMAIL_FROM.
+  replyTo?: string
   // Marks an email no person wrote, so that auto-responders don't answer it and start a loop.
   automated?: boolean
 }) {
@@ -26,6 +28,7 @@ export async function sendEmail(email: {
   await sgMail.send({
     to: email.to,
     from: process.env.EMAIL_FROM!,
+    replyTo: email.replyTo,
     subject: email.subject,
     text: email.text,
     headers: email.automated ? { 'Auto-Submitted': 'auto-replied' } : undefined,

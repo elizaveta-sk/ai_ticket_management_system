@@ -1,8 +1,23 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
 import type { NextFunction, Request, Response } from 'express'
+import { inboundParseSecret } from '../lib/reply-address.ts'
 
 function sha256(value: string) {
   return createHash('sha256').update(value).digest()
+}
+
+// SendGrid's Inbound Parse can't send a custom header, so its secret is part of the URL.
+export function requireInboundParseSecret(req: Request, res: Response, next: NextFunction) {
+  const secret = inboundParseSecret()
+  if (!secret) {
+    res.status(503).json({ error: 'Inbound email is not configured' })
+    return
+  }
+  if (!timingSafeEqual(sha256(String(req.params.secret)), sha256(secret))) {
+    res.status(401).json({ error: 'Unauthorized' })
+    return
+  }
+  next()
 }
 
 // Webhooks come from a service rather than a signed-in user, so they prove

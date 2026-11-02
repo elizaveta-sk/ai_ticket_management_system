@@ -174,7 +174,7 @@ describe('autoResolveTicket', () => {
     expect(vi.mocked(prisma.ticket.findFirst).mock.calls[0][0]?.where).toEqual({
       id: 7,
       status: 'processing',
-      assignedToId: null,
+      OR: [{ assignedToId: null }, { assignedToId: 'jane-ai' }],
       replies: { none: {} },
     })
   })
@@ -205,5 +205,16 @@ describe('autoResolveTicket', () => {
 
     expect(prisma.$transaction).not.toHaveBeenCalled()
     expect(log).toHaveBeenCalledWith('Could not auto-resolve ticket 7:', 'Forbidden')
+  })
+
+  it('reports false without emailing when the model throws, so the caller opens the ticket', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(generateText).mockRejectedValue(new Error('Rate limited'))
+
+    await expect(autoResolveTicket(ticket, 'general_question')).resolves.toBe(false)
+
+    expect(sendEmail).not.toHaveBeenCalled()
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+    expect(log).toHaveBeenCalledWith('Could not auto-resolve ticket 7:', 'Rate limited')
   })
 })

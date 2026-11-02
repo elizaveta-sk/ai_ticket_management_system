@@ -10,10 +10,12 @@ import {
 } from 'core/tickets'
 import { Router } from 'express'
 import { Prisma, Role, SenderType } from '../generated/prisma/client.ts'
+import { aiAgentId } from '../lib/ai-agent.ts'
 import { isEmailConfigured, sendEmail } from '../lib/email.ts'
 import { isOpenAIConfigured } from '../lib/openai.ts'
 import { polishReply } from '../lib/polish-reply.ts'
 import { prisma } from '../lib/prisma.ts'
+import { replyAddressFor } from '../lib/reply-address.ts'
 import { summarizeTicket } from '../lib/summarize-ticket.ts'
 import { rateLimitPerUser } from '../middleware/rate-limit-per-user.ts'
 import { requireAuth } from '../middleware/require-auth.ts'
@@ -128,7 +130,15 @@ ticketsRouter.get('/tickets/:id', requireAuth, async (req, res) => {
 
 async function resolutionChanges(id: number, status: TicketStatus | undefined) {
   // An agent moving an AI-resolved ticket on has taken it over, so it joins the list again.
-  if (status === 'open') return { resolvedByAi: false, resolvedAt: null }
+  if (status === 'open') {
+    const ticket = await prisma.ticket.findUnique({ where: { id }, select: { assignedToId: true } })
+    return {
+      resolvedByAi: false,
+      resolvedAt: null,
+      // The AI has finished with it, so nobody is working on it until an agent picks it up.
+      ...(ticket?.assignedToId === aiAgentId && { assignedToId: null }),
+    }
+  }
   if (status === 'closed') return { resolvedByAi: false }
   if (status !== 'resolved') return {}
 
@@ -154,7 +164,7 @@ ticketsRouter.patch('/tickets/:id', requireAuth, async (req, res) => {
   const changes = parsed.data
   if (changes.assignedToId) {
     const agent = await prisma.user.findFirst({
-      where: { id: changes.assignedToId, role: Role.agent, deletedAt: null },
+      where: { id: { equals: changes.assignedToId, not: aiAgentId }, role: Role.agent, deletedAt: null },
       select: { id: true },
     })
     if (!agent) {
@@ -167,8 +177,9 @@ ticketsRouter.patch('/tickets/:id', requireAuth, async (req, res) => {
     const ticket = await prisma.ticket.update({
       where: { id: id.data },
       data: {
-        ...changes,
+        // In this order, so that an assignee sent with the change is kept.
         ...(await resolutionChanges(id.data, changes.status)),
+        ...changes,
       },
       select: ticketDetailSelect,
     })
@@ -278,8 +289,8 @@ ticketsRouter.post('/tickets/:id/summary', requireAuth, summaryRateLimit, async 
   res.status(502).json({ error: 'Could not summarize the ticket' })
 })
 
-// Admins and agents can both reply to any ticket, whatever its status. The reply is
-// only stored for now: nothing emails it to the student until outbound email exists.
+// Admins and agents can both reply to any ticket, whatever its status. The reply is saved and
+// then emailed to the student.
 ticketsRouter.post('/tickets/:id/replies', requireAuth, async (req, res) => {
   const id = ticketIdSchema.safeParse(req.params.id)
   if (!id.success) {
@@ -311,6 +322,7 @@ ticketsRouter.post('/tickets/:id/replies', requireAuth, async (req, res) => {
           to: ticket.senderEmail,
           subject: `Re: ${ticket.subject}`,
           text: reply.body,
+          replyTo: replyAddressFor(id.data),
         })
       } catch (error) {
         emailFailed = true

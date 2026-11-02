@@ -4,7 +4,7 @@ import { autoResolveTicket } from './auto-resolve-ticket.ts'
 import { classifyTicketInBackground } from './classify-ticket.ts'
 import { isOpenAIConfigured } from './openai.ts'
 import { prisma } from './prisma.ts'
-import { moveTicket } from './ticket-state.ts'
+import { handOverToAgents, startProcessing } from './ticket-state.ts'
 
 // Without a model there's nothing to process, and the ticket should reach agents straight away.
 export function initialTicketStatus() {
@@ -12,15 +12,16 @@ export function initialTicketStatus() {
 }
 
 // Call without awaiting, so that a new ticket never waits for the models. It never rejects.
-// Moves the ticket from new to processing, and then to resolved or open. A ticket that can't
-// be classified isn't answered, because refund requests have to be recognised first.
+// Moves the ticket from new to processing, assigned to the AI agent, and then either to resolved
+// or to open and unassigned. A ticket that can't be classified isn't answered, because refund
+// requests have to be recognised first.
 export async function processTicketInBackground(ticket: Pick<Ticket, 'id' | 'subject' | 'body'>) {
   try {
-    if (!(await moveTicket(ticket.id, TicketStatus.new, TicketStatus.processing))) return
+    if (!(await startProcessing(ticket.id))) return
 
     const category = await classifyTicketInBackground(ticket)
     const resolved = category ? await autoResolveTicket(ticket, category) : false
-    if (!resolved) await moveTicket(ticket.id, TicketStatus.processing, TicketStatus.open)
+    if (!resolved) await handOverToAgents(ticket.id)
   } catch (error) {
     // The sweep below moves the ticket on, so it can't stay hidden from agents.
     console.error(
@@ -57,7 +58,7 @@ export async function sweepTickets() {
       select: { id: true },
     })
     for (const { id } of stuck) {
-      await moveTicket(id, TicketStatus.processing, TicketStatus.open)
+      await handOverToAgents(id)
     }
 
     const waiting = await prisma.ticket.findMany({

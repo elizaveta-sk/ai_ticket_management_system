@@ -13,13 +13,29 @@ import { prisma } from './prisma.ts'
 vi.mock('./auto-resolve-ticket.ts', () => ({ autoResolveTicket: vi.fn() }))
 vi.mock('./classify-ticket.ts', () => ({ classifyTicketInBackground: vi.fn() }))
 vi.mock('./openai.ts', () => ({ isOpenAIConfigured: vi.fn() }))
-vi.mock('./prisma.ts', () => ({ prisma: { ticket: { findMany: vi.fn(), updateMany: vi.fn() } } }))
+vi.mock('./prisma.ts', () => ({
+  prisma: {
+    $transaction: vi.fn(),
+    ticket: { findMany: vi.fn(), updateMany: vi.fn() },
+    user: { findFirst: vi.fn() },
+  },
+}))
 
 const ticket = { id: 7, subject: 'Videos', body: 'Can I download videos?' }
 
 const moved = (id: number, from: string, to: string) => ({
   where: { id, status: from },
   data: { status: to },
+})
+
+const assignedToAi = (id: number) => ({
+  where: { id, assignedToId: null },
+  data: { assignedToId: 'jane-ai' },
+})
+
+const unassigned = (id: number) => ({
+  where: { id, assignedToId: 'jane-ai' },
+  data: { assignedToId: null },
 })
 
 // The sweep's three queries, in the order it makes them.
@@ -36,6 +52,9 @@ beforeEach(() => {
   vi.mocked(autoResolveTicket).mockResolvedValue(false)
   vi.mocked(prisma.ticket.findMany).mockResolvedValue([])
   vi.mocked(prisma.ticket.updateMany).mockResolvedValue({ count: 1 } as never)
+  vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: 'jane-ai' } as never)
+  vi.mocked(prisma.$transaction).mockImplementation(((queries: Promise<unknown>[]) =>
+    Promise.all(queries)) as never)
 })
 
 afterEach(() => {
@@ -43,8 +62,10 @@ afterEach(() => {
   vi.restoreAllMocks()
   vi.mocked(autoResolveTicket).mockReset()
   vi.mocked(classifyTicketInBackground).mockReset()
+  vi.mocked(prisma.$transaction).mockReset()
   vi.mocked(prisma.ticket.findMany).mockReset()
   vi.mocked(prisma.ticket.updateMany).mockReset()
+  vi.mocked(prisma.user.findFirst).mockReset()
 })
 
 describe('initialTicketStatus', () => {
@@ -69,28 +90,52 @@ describe('processTicketInBackground', () => {
     )
   })
 
-  it('leaves the ticket resolved when the AI answered it', async () => {
+  it('assigns the ticket to the AI agent before the models run', async () => {
+    await processTicketInBackground(ticket)
+
+    expect(prisma.ticket.updateMany).toHaveBeenNthCalledWith(2, assignedToAi(7))
+    expect(vi.mocked(prisma.ticket.updateMany).mock.invocationCallOrder[1]).toBeLessThan(
+      vi.mocked(classifyTicketInBackground).mock.invocationCallOrder[0],
+    )
+  })
+
+  it('still processes the ticket when the AI agent has not been seeded', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(prisma.user.findFirst).mockResolvedValue(null)
+
+    await processTicketInBackground(ticket)
+
+    expect(prisma.ticket.updateMany).not.toHaveBeenCalledWith(assignedToAi(7))
+    expect(autoResolveTicket).toHaveBeenCalled()
+    expect(warn.mock.calls[0][0]).toContain('Ticket 7 was not assigned')
+  })
+
+  it('leaves the ticket resolved and with the AI agent when the AI answered it', async () => {
     vi.mocked(autoResolveTicket).mockResolvedValue(true)
 
     await processTicketInBackground(ticket)
 
     expect(autoResolveTicket).toHaveBeenCalledWith(ticket, 'general_question')
-    expect(prisma.ticket.updateMany).toHaveBeenCalledTimes(1)
+    expect(prisma.ticket.updateMany).toHaveBeenCalledTimes(2)
+    expect(prisma.$transaction).not.toHaveBeenCalled()
   })
 
-  it('opens the ticket when the AI could not answer it', async () => {
+  it('opens and unassigns the ticket when the AI could not answer it', async () => {
     await processTicketInBackground(ticket)
 
-    expect(prisma.ticket.updateMany).toHaveBeenLastCalledWith(moved(7, 'processing', 'open'))
+    expect(prisma.ticket.updateMany).toHaveBeenCalledWith(moved(7, 'processing', 'open'))
+    expect(prisma.ticket.updateMany).toHaveBeenLastCalledWith(unassigned(7))
+    expect(prisma.$transaction).toHaveBeenCalledOnce()
   })
 
-  it('opens the ticket without answering when it could not be classified', async () => {
+  it('opens and unassigns the ticket without answering when it could not be classified', async () => {
     vi.mocked(classifyTicketInBackground).mockResolvedValue(null)
 
     await processTicketInBackground(ticket)
 
     expect(autoResolveTicket).not.toHaveBeenCalled()
-    expect(prisma.ticket.updateMany).toHaveBeenLastCalledWith(moved(7, 'processing', 'open'))
+    expect(prisma.ticket.updateMany).toHaveBeenCalledWith(moved(7, 'processing', 'open'))
+    expect(prisma.ticket.updateMany).toHaveBeenLastCalledWith(unassigned(7))
   })
 
   it('does nothing when the ticket has already left the new state', async () => {
@@ -138,6 +183,7 @@ describe('sweepTickets', () => {
     await sweepTickets()
 
     expect(prisma.ticket.updateMany).toHaveBeenCalledWith(moved(9, 'processing', 'open'))
+    expect(prisma.ticket.updateMany).toHaveBeenCalledWith(unassigned(9))
     expect(classifyTicketInBackground).not.toHaveBeenCalled()
   })
 
