@@ -1,7 +1,7 @@
 import { generateText } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { answerFromKnowledgeBase, autoResolveTicket } from './auto-resolve-ticket.ts'
-import { isEmailConfigured, sendEmail } from './email.ts'
+import { isEmailConfigured, missingEmailSettings, sendEmail } from './email.ts'
 import { isOpenAIConfigured } from './openai.ts'
 import { prisma } from './prisma.ts'
 
@@ -9,7 +9,11 @@ vi.mock('ai', async (importOriginal) => ({
   ...(await importOriginal<typeof import('ai')>()),
   generateText: vi.fn(),
 }))
-vi.mock('./email.ts', () => ({ isEmailConfigured: vi.fn(), sendEmail: vi.fn() }))
+vi.mock('./email.ts', () => ({
+  isEmailConfigured: vi.fn(),
+  missingEmailSettings: vi.fn(),
+  sendEmail: vi.fn(),
+}))
 vi.mock('./openai.ts', () => ({ isOpenAIConfigured: vi.fn() }))
 vi.mock('./prisma.ts', () => ({
   prisma: {
@@ -29,6 +33,7 @@ function modelReturns(output: { canAnswer: boolean; answer: string }) {
 beforeEach(() => {
   vi.mocked(isOpenAIConfigured).mockReturnValue(true)
   vi.mocked(isEmailConfigured).mockReturnValue(true)
+  vi.mocked(missingEmailSettings).mockReturnValue([])
   modelReturns({ canAnswer: true, answer })
   vi.mocked(prisma.ticket.findFirst).mockResolvedValue({
     senderEmail: 'grace@test.dev',
@@ -150,13 +155,17 @@ describe('autoResolveTicket', () => {
     )
   })
 
-  it('logs that auto-resolve is off when email is not configured', async () => {
+  it('logs which settings are missing when auto-resolve is off', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.mocked(isOpenAIConfigured).mockReturnValue(false)
     vi.mocked(isEmailConfigured).mockReturnValue(false)
+    vi.mocked(missingEmailSettings).mockReturnValue(['EMAIL_FROM'])
 
     await autoResolveTicket(ticket, 'general_question')
 
-    expect(log.mock.calls[0][0]).toContain('auto-resolve is off')
+    expect(log.mock.calls[0][0]).toBe(
+      'Ticket 7 left for an agent: auto-resolve is off, because the server is missing OPENAI_API_KEY, EMAIL_FROM',
+    )
   })
 
   it('only looks at a ticket in processing that nobody has touched', async () => {

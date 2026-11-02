@@ -4,7 +4,7 @@ import { generateText, Output } from 'ai'
 import { formatAutoReply, isSafeAutoAnswer, knowledgeBaseAnswerSchema } from 'core/auto-resolve'
 import { SenderType, TicketCategory, TicketStatus } from '../generated/prisma/client.ts'
 import type { Prisma, Ticket } from '../generated/prisma/client.ts'
-import { isEmailConfigured, sendEmail } from './email.ts'
+import { isEmailConfigured, missingEmailSettings, sendEmail } from './email.ts'
 import { isOpenAIConfigured } from './openai.ts'
 import { prisma } from './prisma.ts'
 import { moveTicketQuery } from './ticket-state.ts'
@@ -90,10 +90,11 @@ export async function autoResolveTicket(
   category: TicketCategory,
 ) {
   if (!isAutoResolveConfigured()) {
-    return leaveForAgent(
-      ticket.id,
-      'auto-resolve is off, because it needs OPENAI_API_KEY, SENDGRID_API_KEY and EMAIL_FROM',
-    )
+    const missing = [
+      ...(isOpenAIConfigured() ? [] : ['OPENAI_API_KEY']),
+      ...missingEmailSettings(),
+    ]
+    return leaveForAgent(ticket.id, `auto-resolve is off, because the server is missing ${missing.join(', ')}`)
   }
   // The system can't check purchase dates or course progress, so refunds always need a person.
   if (category === TicketCategory.refund_request) {

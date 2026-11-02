@@ -4,8 +4,13 @@ function isSet(value: string | undefined) {
   return Boolean(value) && !value?.startsWith('YOUR_')
 }
 
+// The names of the settings email still needs. Never their values, because this gets logged.
+export function missingEmailSettings() {
+  return ['SENDGRID_API_KEY', 'EMAIL_FROM'].filter((name) => !isSet(process.env[name]))
+}
+
 export function isEmailConfigured() {
-  return isSet(process.env.SENDGRID_API_KEY) && isSet(process.env.EMAIL_FROM)
+  return missingEmailSettings().length === 0
 }
 
 // Plain text only, with tracking off, because these go to students about their own requests.
