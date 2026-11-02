@@ -21,7 +21,7 @@ const singleLine = (name: string) => name.trim().replace(/\s+/g, ' ')
 const greetingWords =
   'hi|hello|hey|dear|greetings|good morning|good afternoon|good evening|hola|buenos días|buenas tardes|bonjour|salut|hallo|ciao|olá'
 
-function removeGreeting(message: string, greeting: string, customerName: string) {
+export function removeGreeting(message: string, greeting: string, customerName: string) {
   const words = `${escapeRegExp(greeting)}|${greetingWords}`
   const fullName = escapeRegExp(customerName)
   const firstName = escapeRegExp(customerName.split(' ')[0])
@@ -42,7 +42,7 @@ function removeGreeting(message: string, greeting: string, customerName: string)
     : remaining.charAt(0).toUpperCase() + remaining.slice(1)
 }
 
-function removeSignOff(message: string, signOff: string, agentName: string) {
+export function removeSignOff(message: string, signOff: string, agentName: string) {
   const names = `${escapeRegExp(agentName)}|${escapeRegExp(agentName.split(' ')[0])}`
   // A short closing phrase and the agent's name, such as "Thanks, Ada" or "Regards,\nAda Lee".
   const signed = new RegExp(`(?:^|(?<=[.!?\\n]))\\s*[^.!?\\n]{0,30}[,\\n]\\s*(?:${names})[.!]?\\s*$`, 'iu')

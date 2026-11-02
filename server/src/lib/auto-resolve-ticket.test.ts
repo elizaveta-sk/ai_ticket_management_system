@@ -30,7 +30,10 @@ beforeEach(() => {
   vi.mocked(isOpenAIConfigured).mockReturnValue(true)
   vi.mocked(isEmailConfigured).mockReturnValue(true)
   modelReturns({ canAnswer: true, answer })
-  vi.mocked(prisma.ticket.findFirst).mockResolvedValue({ senderEmail: 'grace@test.dev' } as never)
+  vi.mocked(prisma.ticket.findFirst).mockResolvedValue({
+    senderEmail: 'grace@test.dev',
+    senderName: 'Grace Student',
+  } as never)
   // The first count is the sender's recent answers, and the second finds the untouched ticket.
   vi.mocked(prisma.ticket.count).mockResolvedValueOnce(0).mockResolvedValueOnce(1)
   vi.mocked(prisma.$transaction).mockResolvedValue([] as never)
@@ -85,7 +88,7 @@ describe('autoResolveTicket', () => {
     expect(sendEmail).toHaveBeenCalledWith({
       to: 'grace@test.dev',
       subject: 'Your support request',
-      text: expect.stringContaining(answer),
+      text: expect.stringMatching(/^Hi Grace,\n\n.*\n\nBest,\nJane\nSupport team$/s),
       automated: true,
     })
     expect(prisma.ticket.updateMany).toHaveBeenCalledWith({
@@ -134,6 +137,26 @@ describe('autoResolveTicket', () => {
 
     expect(generateText).not.toHaveBeenCalled()
     expect(sendEmail).not.toHaveBeenCalled()
+  })
+
+  it('logs why a ticket went to an agent, without any of the email', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    modelReturns({ canAnswer: false, answer: '' })
+
+    await autoResolveTicket(ticket, 'general_question')
+
+    expect(log).toHaveBeenCalledWith(
+      'Ticket 7 left for an agent: the model could not give a safe, complete answer',
+    )
+  })
+
+  it('logs that auto-resolve is off when email is not configured', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.mocked(isEmailConfigured).mockReturnValue(false)
+
+    await autoResolveTicket(ticket, 'general_question')
+
+    expect(log.mock.calls[0][0]).toContain('auto-resolve is off')
   })
 
   it('only looks at a ticket in processing that nobody has touched', async () => {

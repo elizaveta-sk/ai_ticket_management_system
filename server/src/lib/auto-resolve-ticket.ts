@@ -11,7 +11,9 @@ import { moveTicketQuery } from './ticket-state.ts'
 
 const instructions = `You answer support emails sent by students to an online course provider, using only the knowledge base below.
 
-Set canAnswer to true only if the knowledge base fully answers everything the student asks and nothing more is needed from a person. Then put the answer in answer: only the message itself, with no greeting or sign-off, in the student's language, in plain text with no links.
+Set canAnswer to true only if the knowledge base fully answers everything the student asks and nothing more is needed from a person. Then put the answer in answer: only the message itself, with no greeting or sign-off, in the student's language, in plain text with no links or markdown.
+
+Write the answer the way a professional, friendly support agent would: warm and respectful, direct, and easy to scan. Start with the answer rather than repeating the question, and use full sentences in short paragraphs separated by a blank line. Write steps as a numbered list, each on its own line. If the answer is disappointing, such as something not being supported, say so kindly and plainly.
 
 Otherwise set canAnswer to false and leave answer empty. That passes the email to a human agent, which is always the right choice when you are unsure. Do this when any of these is true:
 - The knowledge base doesn't cover the question, or covers only part of it.
@@ -64,6 +66,13 @@ export async function answerFromKnowledgeBase(ticket: Pick<Ticket, 'subject' | '
   return output.canAnswer && isSafeAutoAnswer(output.answer) ? output.answer : null
 }
 
+// Says why a ticket went to an agent, with nothing from the email itself. Without this, a
+// ticket the AI declined looks the same in the logs as one it never tried.
+function leaveForAgent(id: number, reason: string) {
+  console.log(`Ticket ${id} left for an agent: ${reason}`)
+  return false
+}
+
 // A ticket in processing that nobody has touched, because a person's work always wins.
 const untouched = (id: number): Prisma.TicketWhereInput => ({
   id,
@@ -80,16 +89,23 @@ export async function autoResolveTicket(
   ticket: Pick<Ticket, 'id' | 'subject' | 'body'>,
   category: TicketCategory,
 ) {
-  if (!isAutoResolveConfigured()) return false
+  if (!isAutoResolveConfigured()) {
+    return leaveForAgent(
+      ticket.id,
+      'auto-resolve is off, because it needs OPENAI_API_KEY, SENDGRID_API_KEY and EMAIL_FROM',
+    )
+  }
   // The system can't check purchase dates or course progress, so refunds always need a person.
-  if (category === TicketCategory.refund_request) return false
+  if (category === TicketCategory.refund_request) {
+    return leaveForAgent(ticket.id, 'refund requests always need a person')
+  }
 
   try {
     const sender = await prisma.ticket.findFirst({
       where: untouched(ticket.id),
-      select: { senderEmail: true },
+      select: { senderEmail: true, senderName: true },
     })
-    if (!sender) return false
+    if (!sender) return leaveForAgent(ticket.id, 'someone is already handling it')
 
     const recentAnswers = await prisma.ticket.count({
       where: {
@@ -98,15 +114,19 @@ export async function autoResolveTicket(
         createdAt: { gte: new Date(Date.now() - senderWindowMs) },
       },
     })
-    if (recentAnswers >= maxAnswersPerSender) return false
+    if (recentAnswers >= maxAnswersPerSender) {
+      return leaveForAgent(ticket.id, 'this address has reached its limit of automatic answers')
+    }
 
     const answer = await answerFromKnowledgeBase(ticket)
-    if (!answer) return false
+    if (!answer) return leaveForAgent(ticket.id, 'the model could not give a safe, complete answer')
 
     // The model can take a while, and an agent may have picked the ticket up meanwhile.
-    if ((await prisma.ticket.count({ where: untouched(ticket.id) })) === 0) return false
+    if ((await prisma.ticket.count({ where: untouched(ticket.id) })) === 0) {
+      return leaveForAgent(ticket.id, 'someone picked it up during the model call')
+    }
 
-    const reply = formatAutoReply(answer)
+    const reply = formatAutoReply(answer, sender.senderName)
     await sendEmail({
       to: sender.senderEmail,
       // Fixed, so that nobody can send their own subject line to someone else through this.
@@ -122,6 +142,7 @@ export async function autoResolveTicket(
         data: { ticketId: ticket.id, senderType: SenderType.ai, body: reply },
       }),
     ])
+    console.log(`Ticket ${ticket.id} resolved automatically`)
     return true
   } catch (error) {
     // Only the message, because the full error includes the email.
