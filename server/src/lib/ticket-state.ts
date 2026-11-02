@@ -60,17 +60,17 @@ export function unassignAiAgentQuery(id: number) {
   })
 }
 
-// The agent named by DEFAULT_AGENT_EMAIL. A wrong or missing address mustn't stop a ticket
-// reaching the agents, so it only means the ticket arrives unassigned.
-async function findDefaultAgentId() {
-  const email = process.env.DEFAULT_AGENT_EMAIL?.trim().toLowerCase()
-  if (!email) return null
+// Lucy's account, which takes the tickets the AI couldn't resolve.
+const defaultAgentEmail = 'lucy_agent@example.com'
 
+// A missing account mustn't stop a ticket reaching the agents, so it only means the ticket
+// arrives unassigned.
+async function findDefaultAgentId() {
   const agent = await prisma.user.findFirst({
-    where: { email, role: Role.agent, deletedAt: null },
+    where: { email: defaultAgentEmail, role: Role.agent, deletedAt: null },
     select: { id: true },
   })
-  if (!agent) console.warn('DEFAULT_AGENT_EMAIL does not match an active agent')
+  if (!agent) console.warn('Tickets stay unassigned, because the default agent account is missing')
   return agent?.id ?? null
 }
 

@@ -38,6 +38,11 @@ const unassigned = (id: number) => ({
   data: { assignedToId: null },
 })
 
+const assignedToLucy = (id: number) => ({
+  where: { id, OR: [{ assignedToId: 'jane-ai' }, { assignedToId: null }] },
+  data: { assignedToId: 'lucy-id' },
+})
+
 // The sweep's three queries, in the order it makes them.
 function sweepFinds(stuck: object[], waiting: object[], uncategorized: object[]) {
   vi.mocked(prisma.ticket.findMany)
@@ -52,7 +57,9 @@ beforeEach(() => {
   vi.mocked(autoResolveTicket).mockResolvedValue(false)
   vi.mocked(prisma.ticket.findMany).mockResolvedValue([])
   vi.mocked(prisma.ticket.updateMany).mockResolvedValue({ count: 1 } as never)
-  vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: 'jane-ai' } as never)
+  // Jane AI is looked up by id, and Lucy by email.
+  vi.mocked(prisma.user.findFirst).mockImplementation((async ({ where }: { where: { id?: string } }) =>
+    ({ id: where.id ? 'jane-ai' : 'lucy-id' })) as never)
   vi.mocked(prisma.$transaction).mockImplementation(((queries: Promise<unknown>[]) =>
     Promise.all(queries)) as never)
 })
@@ -120,82 +127,44 @@ describe('processTicketInBackground', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled()
   })
 
-  it('opens and unassigns the ticket when the AI could not answer it', async () => {
+  it('opens the ticket and assigns it to Lucy when the AI could not answer it', async () => {
     await processTicketInBackground(ticket)
 
     expect(prisma.ticket.updateMany).toHaveBeenCalledWith(moved(7, 'processing', 'open'))
-    expect(prisma.ticket.updateMany).toHaveBeenLastCalledWith(unassigned(7))
+    expect(prisma.ticket.updateMany).toHaveBeenLastCalledWith(assignedToLucy(7))
     expect(prisma.$transaction).toHaveBeenCalledOnce()
   })
 
-  it('opens and unassigns the ticket without answering when it could not be classified', async () => {
+  it('assigns the ticket to Lucy without answering when it could not be classified', async () => {
     vi.mocked(classifyTicketInBackground).mockResolvedValue(null)
 
     await processTicketInBackground(ticket)
 
     expect(autoResolveTicket).not.toHaveBeenCalled()
     expect(prisma.ticket.updateMany).toHaveBeenCalledWith(moved(7, 'processing', 'open'))
-    expect(prisma.ticket.updateMany).toHaveBeenLastCalledWith(unassigned(7))
+    expect(prisma.ticket.updateMany).toHaveBeenLastCalledWith(assignedToLucy(7))
   })
 
-  describe('with a default agent', () => {
-    const toLucy = {
-      where: { id: 7, OR: [{ assignedToId: 'jane-ai' }, { assignedToId: null }] },
-      data: { assignedToId: 'lucy-id' },
-    }
-    const lookup = {
-      where: { email: 'lucy@example.com', role: 'agent', deletedAt: null },
+  it('looks for Lucy among the active agents', async () => {
+    await processTicketInBackground(ticket)
+
+    expect(prisma.user.findFirst).toHaveBeenLastCalledWith({
+      where: { email: 'lucy_agent@example.com', role: 'agent', deletedAt: null },
       select: { id: true },
-    }
-
-    beforeEach(() => {
-      vi.stubEnv('DEFAULT_AGENT_EMAIL', ' Lucy@Example.com ')
     })
+  })
 
-    afterEach(() => {
-      vi.unstubAllEnvs()
-    })
+  it('still opens the ticket, unassigned, when Lucy has no active account', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(prisma.user.findFirst)
+      .mockResolvedValueOnce({ id: 'jane-ai' } as never)
+      .mockResolvedValueOnce(null)
 
-    it('assigns the ticket to them when the AI could not answer it', async () => {
-      vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: 'lucy-id' } as never)
+    await processTicketInBackground(ticket)
 
-      await processTicketInBackground(ticket)
-
-      expect(prisma.user.findFirst).toHaveBeenLastCalledWith(lookup)
-      expect(prisma.ticket.updateMany).toHaveBeenCalledWith(moved(7, 'processing', 'open'))
-      expect(prisma.ticket.updateMany).toHaveBeenLastCalledWith(toLucy)
-      expect(prisma.$transaction).toHaveBeenCalledOnce()
-    })
-
-    it('assigns the ticket to them when it could not be classified', async () => {
-      vi.mocked(classifyTicketInBackground).mockResolvedValue(null)
-      vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: 'lucy-id' } as never)
-
-      await processTicketInBackground(ticket)
-
-      expect(prisma.ticket.updateMany).toHaveBeenLastCalledWith(toLucy)
-    })
-
-    it('leaves a ticket the AI answered with the AI', async () => {
-      vi.mocked(autoResolveTicket).mockResolvedValue(true)
-
-      await processTicketInBackground(ticket)
-
-      expect(prisma.ticket.updateMany).not.toHaveBeenCalledWith(toLucy)
-    })
-
-    it('still opens the ticket, unassigned, when no active agent has that address', async () => {
-      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-      vi.mocked(prisma.user.findFirst)
-        .mockResolvedValueOnce({ id: 'jane-ai' } as never)
-        .mockResolvedValueOnce(null)
-
-      await processTicketInBackground(ticket)
-
-      expect(prisma.ticket.updateMany).toHaveBeenCalledWith(moved(7, 'processing', 'open'))
-      expect(prisma.ticket.updateMany).toHaveBeenLastCalledWith(unassigned(7))
-      expect(warn).toHaveBeenCalledWith('DEFAULT_AGENT_EMAIL does not match an active agent')
-    })
+    expect(prisma.ticket.updateMany).toHaveBeenCalledWith(moved(7, 'processing', 'open'))
+    expect(prisma.ticket.updateMany).toHaveBeenLastCalledWith(unassigned(7))
+    expect(warn.mock.calls[0][0]).toContain('default agent account is missing')
   })
 
   it('does nothing when the ticket has already left the new state', async () => {
@@ -243,7 +212,7 @@ describe('sweepTickets', () => {
     await sweepTickets()
 
     expect(prisma.ticket.updateMany).toHaveBeenCalledWith(moved(9, 'processing', 'open'))
-    expect(prisma.ticket.updateMany).toHaveBeenCalledWith(unassigned(9))
+    expect(prisma.ticket.updateMany).toHaveBeenCalledWith(assignedToLucy(9))
     expect(classifyTicketInBackground).not.toHaveBeenCalled()
   })
 
