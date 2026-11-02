@@ -43,23 +43,45 @@ afterEach(() => {
 })
 
 describe('the AI agent', () => {
-  it.each(['users', 'agents'])('is left out of GET /api/%s', async (path) => {
+  it('is left out of GET /api/agents', async () => {
     vi.mocked(prisma.user.findMany).mockResolvedValue([])
 
-    await fetch(`${baseUrl}/${path}`)
+    await fetch(`${baseUrl}/agents`)
 
     expect(vi.mocked(prisma.user.findMany).mock.calls[0][0]?.where?.id).toEqual({ not: 'jane-ai' })
   })
 
-  it('cannot be edited, which could give it a password', async () => {
+  it('is included in GET /api/users', async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([])
+
+    await fetch(`${baseUrl}/users`)
+
+    expect(vi.mocked(prisma.user.findMany).mock.calls[0][0]?.where).toEqual({ deletedAt: null })
+  })
+
+  it('can be renamed, and only the name is written', async () => {
+    vi.mocked(prisma.user.update).mockResolvedValue({ id: 'jane-ai', name: 'Janet' } as never)
+
     const res = await fetch(`${baseUrl}/users/jane-ai`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Jane', email: 'jane@test.dev', password: 'a-long-password-1' }),
+      body: JSON.stringify({ name: 'Janet', email: 'jane@test.dev', password: 'a-long-password-1' }),
     })
 
-    expect(res.status).toBe(404)
+    expect(res.status).toBe(200)
+    expect(vi.mocked(prisma.user.update).mock.calls[0][0].data).toEqual({ name: 'Janet' })
     expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('rejects a name that is too short', async () => {
+    const res = await fetch(`${baseUrl}/users/jane-ai`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'J' }),
+    })
+
+    expect(res.status).toBe(400)
+    expect(prisma.user.update).not.toHaveBeenCalled()
   })
 
   it('cannot be deleted', async () => {

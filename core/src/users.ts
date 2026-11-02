@@ -29,5 +29,8 @@ export const updateUserSchema = z.object({
     .refine((value) => value === '' || value.length >= PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT),
 })
 
+// The AI agent can only be renamed: no email, which is reserved, and no password.
+export const updateAiAgentSchema = z.object({ name: nameSchema })
+
 export type CreateUserInput = z.infer<typeof createUserSchema>
 export type UpdateUserInput = z.infer<typeof updateUserSchema>

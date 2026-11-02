@@ -1,5 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { createUserSchema, updateUserSchema, type CreateUserInput } from 'core/users'
+import {
+  createUserSchema,
+  updateAiAgentSchema,
+  updateUserSchema,
+  type CreateUserInput,
+} from 'core/users'
 import { Controller, useForm } from 'react-hook-form'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -14,8 +19,10 @@ import {
 import { Input } from '@/components/ui/input'
 
 type UserFormProps = {
-  schema: typeof createUserSchema | typeof updateUserSchema
+  schema: typeof createUserSchema | typeof updateUserSchema | typeof updateAiAgentSchema
   defaultValues: CreateUserInput
+  // Only the name can be changed, so the email and password fields are left out.
+  nameOnly?: boolean
   passwordDescription?: string
   submitLabel: string
   pendingLabel: string
@@ -29,6 +36,7 @@ type UserFormProps = {
 function UserForm({
   schema,
   defaultValues,
+  nameOnly = false,
   passwordDescription,
   submitLabel,
   pendingLabel,
@@ -60,41 +68,47 @@ function UserForm({
             </Field>
           )}
         />
-        <Controller
-          name="email"
-          control={control}
-          render={({ field, fieldState }) => (
-            <Field data-invalid={fieldState.invalid}>
-              <FieldLabel htmlFor={field.name}>Email</FieldLabel>
-              <Input
-                {...field}
-                id={field.name}
-                type="email"
-                autoComplete="off"
-                aria-invalid={fieldState.invalid}
-              />
-              {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-            </Field>
-          )}
-        />
-        <Controller
-          name="password"
-          control={control}
-          render={({ field, fieldState }) => (
-            <Field data-invalid={fieldState.invalid}>
-              <FieldLabel htmlFor={field.name}>Password</FieldLabel>
-              <Input
-                {...field}
-                id={field.name}
-                type="password"
-                autoComplete="new-password"
-                aria-invalid={fieldState.invalid}
-              />
-              {passwordDescription && <FieldDescription>{passwordDescription}</FieldDescription>}
-              {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-            </Field>
-          )}
-        />
+        {!nameOnly && (
+          <>
+            <Controller
+              name="email"
+              control={control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor={field.name}>Email</FieldLabel>
+                  <Input
+                    {...field}
+                    id={field.name}
+                    type="email"
+                    autoComplete="off"
+                    aria-invalid={fieldState.invalid}
+                  />
+                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                </Field>
+              )}
+            />
+            <Controller
+              name="password"
+              control={control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor={field.name}>Password</FieldLabel>
+                  <Input
+                    {...field}
+                    id={field.name}
+                    type="password"
+                    autoComplete="new-password"
+                    aria-invalid={fieldState.invalid}
+                  />
+                  {passwordDescription && (
+                    <FieldDescription>{passwordDescription}</FieldDescription>
+                  )}
+                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                </Field>
+              )}
+            />
+          </>
+        )}
         {errorMessage && (
           <Alert variant="destructive">
             <AlertDescription>{errorMessage}</AlertDescription>

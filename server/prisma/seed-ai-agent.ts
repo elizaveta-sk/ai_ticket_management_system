@@ -9,7 +9,8 @@ const fields = { name: aiAgentName, email: aiAgentEmail, role: Role.agent }
 await prisma.user.upsert({
   where: { id: aiAgentId },
   create: { id: aiAgentId, ...fields },
-  update: { ...fields, deletedAt: null, deletedEmail: null },
+  // The name is left alone, so a rename by the admin survives running this again.
+  update: { email: aiAgentEmail, role: Role.agent, deletedAt: null, deletedEmail: null },
 })
 
 console.log(`Seeded AI agent: ${aiAgentName}`)

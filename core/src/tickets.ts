@@ -55,6 +55,7 @@ export type TicketViewCounts = Record<TicketView, number>
 
 // The name on the AI's tickets and replies.
 export const aiAgentName = 'Jane AI'
+export const aiAgentId = 'jane-ai'
 
 // One day on the dashboard's chart. The date is a UTC day, as YYYY-MM-DD.
 export interface DailyTicketCount {

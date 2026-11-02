@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { hashPassword } from 'better-auth/crypto'
-import { createUserSchema, updateUserSchema } from 'core/users'
+import { createUserSchema, updateAiAgentSchema, updateUserSchema } from 'core/users'
 import { Router } from 'express'
 import { Prisma, Role } from '../generated/prisma/client.ts'
 import { aiAgentId } from '../lib/ai-agent.ts'
@@ -19,7 +19,7 @@ usersRouter.get('/me', requireAuth, (req, res) => {
 
 usersRouter.get('/users', requireAuth, requireRole(Role.admin), async (_req, res) => {
   const users = await prisma.user.findMany({
-    where: { deletedAt: null, id: { not: aiAgentId } },
+    where: { deletedAt: null },
     select: userSelect,
     orderBy: { createdAt: 'asc' },
   })
@@ -79,6 +79,32 @@ usersRouter.post('/users', requireAuth, requireRole(Role.admin), async (req, res
 
 // Writes the rows directly, like POST above. Never changes the role.
 usersRouter.put('/users/:id', requireAuth, requireRole(Role.admin), async (req, res) => {
+  // Express types params as string | string[], but a named segment is always a string.
+  const id = req.params.id as string
+  // The AI agent can only be renamed: a password would let someone sign in as it.
+  if (id === aiAgentId) {
+    const renamed = updateAiAgentSchema.safeParse(req.body)
+    if (!renamed.success) {
+      res.status(400).json({ error: renamed.error.issues[0].message })
+      return
+    }
+    try {
+      const user = await prisma.user.update({
+        where: { id, deletedAt: null },
+        data: { name: renamed.data.name },
+        select: userSelect,
+      })
+      res.json({ user })
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        res.status(404).json({ error: 'User not found' })
+        return
+      }
+      throw error
+    }
+    return
+  }
+
   const parsed = updateUserSchema.safeParse(req.body)
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0].message })
@@ -86,13 +112,6 @@ usersRouter.put('/users/:id', requireAuth, requireRole(Role.admin), async (req, 
   }
 
   const { name, email, password } = parsed.data
-  // Express types params as string | string[], but a named segment is always a string.
-  const id = req.params.id as string
-  // A password would let someone sign in as the AI agent.
-  if (id === aiAgentId) {
-    res.status(404).json({ error: 'User not found' })
-    return
-  }
   const passwordHash = password ? await hashPassword(password) : undefined
   try {
     const user = await prisma.$transaction(async (tx) => {

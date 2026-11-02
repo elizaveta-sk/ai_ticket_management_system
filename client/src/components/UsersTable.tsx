@@ -8,6 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { aiAgentId } from 'core/tickets'
 import DeleteUserDialog from './DeleteUserDialog.tsx'
 import EditUserDialog from './EditUserDialog.tsx'
 
@@ -68,8 +69,12 @@ function UsersTable({ users, isPending }: { users?: User[]; isPending: boolean }
             <TableCell>
               <div className="flex justify-end gap-1">
                 <EditUserDialog user={user} />
-                {/* Admins can't be deleted. The spacer keeps the edit buttons lined up. */}
-                {user.role === 'admin' ? <div className="size-7" /> : <DeleteUserDialog user={user} />}
+                {/* Admins and the AI agent can't be deleted. The spacer keeps the edit buttons lined up. */}
+                {user.role === 'admin' || user.id === aiAgentId ? (
+                  <div className="size-7" />
+                ) : (
+                  <DeleteUserDialog user={user} />
+                )}
               </div>
             </TableCell>
           </TableRow>
