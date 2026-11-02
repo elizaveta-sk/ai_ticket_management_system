@@ -138,6 +138,66 @@ describe('processTicketInBackground', () => {
     expect(prisma.ticket.updateMany).toHaveBeenLastCalledWith(unassigned(7))
   })
 
+  describe('with a default agent', () => {
+    const toLucy = {
+      where: { id: 7, OR: [{ assignedToId: 'jane-ai' }, { assignedToId: null }] },
+      data: { assignedToId: 'lucy-id' },
+    }
+    const lookup = {
+      where: { email: 'lucy@example.com', role: 'agent', deletedAt: null },
+      select: { id: true },
+    }
+
+    beforeEach(() => {
+      vi.stubEnv('DEFAULT_AGENT_EMAIL', ' Lucy@Example.com ')
+    })
+
+    afterEach(() => {
+      vi.unstubAllEnvs()
+    })
+
+    it('assigns the ticket to them when the AI could not answer it', async () => {
+      vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: 'lucy-id' } as never)
+
+      await processTicketInBackground(ticket)
+
+      expect(prisma.user.findFirst).toHaveBeenLastCalledWith(lookup)
+      expect(prisma.ticket.updateMany).toHaveBeenCalledWith(moved(7, 'processing', 'open'))
+      expect(prisma.ticket.updateMany).toHaveBeenLastCalledWith(toLucy)
+      expect(prisma.$transaction).toHaveBeenCalledOnce()
+    })
+
+    it('assigns the ticket to them when it could not be classified', async () => {
+      vi.mocked(classifyTicketInBackground).mockResolvedValue(null)
+      vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: 'lucy-id' } as never)
+
+      await processTicketInBackground(ticket)
+
+      expect(prisma.ticket.updateMany).toHaveBeenLastCalledWith(toLucy)
+    })
+
+    it('leaves a ticket the AI answered with the AI', async () => {
+      vi.mocked(autoResolveTicket).mockResolvedValue(true)
+
+      await processTicketInBackground(ticket)
+
+      expect(prisma.ticket.updateMany).not.toHaveBeenCalledWith(toLucy)
+    })
+
+    it('still opens the ticket, unassigned, when no active agent has that address', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      vi.mocked(prisma.user.findFirst)
+        .mockResolvedValueOnce({ id: 'jane-ai' } as never)
+        .mockResolvedValueOnce(null)
+
+      await processTicketInBackground(ticket)
+
+      expect(prisma.ticket.updateMany).toHaveBeenCalledWith(moved(7, 'processing', 'open'))
+      expect(prisma.ticket.updateMany).toHaveBeenLastCalledWith(unassigned(7))
+      expect(warn).toHaveBeenCalledWith('DEFAULT_AGENT_EMAIL does not match an active agent')
+    })
+  })
+
   it('does nothing when the ticket has already left the new state', async () => {
     vi.mocked(prisma.ticket.updateMany).mockResolvedValue({ count: 0 } as never)
 

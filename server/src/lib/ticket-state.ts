@@ -1,4 +1,4 @@
-import { TicketStatus } from '../generated/prisma/client.ts'
+import { Role, TicketStatus } from '../generated/prisma/client.ts'
 import type { Prisma } from '../generated/prisma/client.ts'
 import { aiAgentId } from './ai-agent.ts'
 import { prisma } from './prisma.ts'
@@ -60,10 +60,32 @@ export function unassignAiAgentQuery(id: number) {
   })
 }
 
-// The AI couldn't resolve the ticket, so it goes to the agents with nobody assigned.
+// The agent named by DEFAULT_AGENT_EMAIL. A wrong or missing address mustn't stop a ticket
+// reaching the agents, so it only means the ticket arrives unassigned.
+async function findDefaultAgentId() {
+  const email = process.env.DEFAULT_AGENT_EMAIL?.trim().toLowerCase()
+  if (!email) return null
+
+  const agent = await prisma.user.findFirst({
+    where: { email, role: Role.agent, deletedAt: null },
+    select: { id: true },
+  })
+  if (!agent) console.warn('DEFAULT_AGENT_EMAIL does not match an active agent')
+  return agent?.id ?? null
+}
+
+// The AI couldn't resolve the ticket, so it goes to the default agent, or to nobody without one.
+// Leaves any other assignee in place. A ticket can have no assignee here if the AI agent wasn't
+// seeded, and that one goes to the default agent too.
 export async function handOverToAgents(id: number) {
+  const defaultAgentId = await findDefaultAgentId()
   await prisma.$transaction([
     moveTicketQuery(id, TicketStatus.processing, TicketStatus.open),
-    unassignAiAgentQuery(id),
+    defaultAgentId
+      ? prisma.ticket.updateMany({
+          where: { id, OR: [{ assignedToId: aiAgentId }, { assignedToId: null }] },
+          data: { assignedToId: defaultAgentId },
+        })
+      : unassignAiAgentQuery(id),
   ])
 }

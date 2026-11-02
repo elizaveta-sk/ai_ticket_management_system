@@ -14,7 +14,7 @@ export function initialTicketStatus() {
 
 // Call without awaiting, so that a new ticket never waits for the models. It never rejects.
 // Moves the ticket from new to processing, assigned to the AI agent, and then either to resolved
-// or to open and unassigned. A ticket that can't be classified isn't answered, because refund
+// or to open for the default agent. A ticket that can't be classified isn't answered, because refund
 // requests have to be recognised first.
 export async function processTicketInBackground(ticket: Pick<Ticket, 'id' | 'subject' | 'body'>) {
   try {
