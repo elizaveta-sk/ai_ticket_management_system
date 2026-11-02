@@ -11,7 +11,7 @@ A support desk for an online course provider. An AI agent answers the questions 
 
 **Test account:** `lucy_agent@example.com`, password `password123`
 
-This is a shared demo account, so anyone can see what you enter. The hosting is on a free plan and goes to sleep when idle, so the first request after a quiet period can take up to a minute or so.
+This is a shared demo account, so anyone can see what you enter. The hosting is on a free plan and goes to sleep when idle, so the first request after a quiet period can take up to a minute or so. If you get an error while logging in or sending a request, try again in a minute.
 
 ## How it works
 
