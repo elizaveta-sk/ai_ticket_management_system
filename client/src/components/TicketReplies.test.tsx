@@ -43,6 +43,28 @@ function serverError(status: number, error: string) {
 }
 
 describe('TicketReplies', () => {
+  describe('email and automated answers', () => {
+    it('labels an automated answer', () => {
+      renderReplies([{ ...customerReply, senderType: 'ai', body: 'Videos are streamed.' }])
+
+      expect(screen.getByText('Automated answer')).toBeInTheDocument()
+      expect(screen.getByText('AI')).toBeInTheDocument()
+    })
+
+    it('tells the agent when the reply was saved but the email failed', async () => {
+      vi.spyOn(axios, 'post').mockResolvedValue({ data: { emailFailed: true } })
+      renderReplies()
+
+      send('We are on it.')
+
+      expect(
+        await screen.findByText(
+          'Your reply was saved, but the email to the student could not be sent.',
+        ),
+      ).toBeInTheDocument()
+    })
+  })
+
   describe('thread', () => {
     it('says so when there are no replies, and still offers the form', () => {
       renderReplies()

@@ -1,17 +1,16 @@
 import type { NextFunction, Request, Response } from 'express'
 
-// Goes after requireAuth, because it counts by user. Counters are in memory, so they
-// reset on restart and assume a single instance.
-export function rateLimitPerUser(max: number, windowMs: number) {
+// Counters are in memory, so they reset on restart and assume a single instance.
+function rateLimit(max: number, windowMs: number, getKey: (req: Request) => string) {
   const windows = new Map<string, { count: number; resetAt: number }>()
 
   return (req: Request, res: Response, next: NextFunction) => {
-    const userId = req.user!.id
+    const key = getKey(req)
     const now = Date.now()
-    const current = windows.get(userId)
+    const current = windows.get(key)
 
     if (!current || now >= current.resetAt) {
-      windows.set(userId, { count: 1, resetAt: now + windowMs })
+      windows.set(key, { count: 1, resetAt: now + windowMs })
       next()
       return
     }
@@ -23,4 +22,15 @@ export function rateLimitPerUser(max: number, windowMs: number) {
     current.count++
     next()
   }
+}
+
+// Goes after requireAuth, because it counts by user.
+export function rateLimitPerUser(max: number, windowMs: number) {
+  return rateLimit(max, windowMs, (req) => req.user!.id)
+}
+
+// One counter shared by every caller of a public route. A spammer can use up the limit
+// for everyone, but can't get past it by faking the headers that identify a visitor.
+export function rateLimitTotal(max: number, windowMs: number) {
+  return rateLimit(max, windowMs, () => 'total')
 }

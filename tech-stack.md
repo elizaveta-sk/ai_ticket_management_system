@@ -27,11 +27,11 @@
 ## AI
 
 - Claude API (Anthropic) for suggested replies
-- OpenAI `gpt-5-nano` through the Vercel AI SDK for ticket classification, summaries and polishing agents' draft replies
+- OpenAI `gpt-5-nano` through the Vercel AI SDK for ticket classification, auto-resolve answers, summaries and polishing agents' draft replies
 
 ## Email
 
-- SendGrid or Mailgun for outbound replies and inbound webhooks
+- SendGrid for outbound replies and inbound webhooks
 
 ## Deployment
 

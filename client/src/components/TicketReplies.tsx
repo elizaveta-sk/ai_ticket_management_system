@@ -11,6 +11,8 @@ import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field
 import { Textarea } from '@/components/ui/textarea'
 import { serverErrorMessage } from '../lib/server-error-message.ts'
 
+const senderLabel = { customer: 'Customer', agent: 'Agent', ai: 'AI' } as const
+
 function ReplyForm({ ticketId }: { ticketId: number }) {
   const queryClient = useQueryClient()
   const { control, handleSubmit, reset, setValue } = useForm<CreateReplyInput>({
@@ -19,7 +21,7 @@ function ReplyForm({ ticketId }: { ticketId: number }) {
   })
   const addReply = useMutation({
     mutationFn: (values: CreateReplyInput) =>
-      axios.post(`/api/tickets/${ticketId}/replies`, values),
+      axios.post<{ emailFailed: boolean }>(`/api/tickets/${ticketId}/replies`, values),
     onSuccess: async () => {
       // Waits for the refreshed thread, so the reply never appears to vanish.
       await queryClient.invalidateQueries({ queryKey: ['ticket', String(ticketId)] })
@@ -65,6 +67,13 @@ function ReplyForm({ ticketId }: { ticketId: number }) {
           <Alert variant="destructive">
             <AlertDescription>
               {serverErrorMessage(addReply.error, 'Could not send reply')}
+            </AlertDescription>
+          </Alert>
+        )}
+        {addReply.data?.data.emailFailed && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              Your reply was saved, but the email to the student could not be sent.
             </AlertDescription>
           </Alert>
         )}
@@ -121,10 +130,14 @@ function TicketReplies({
                   <div className="mb-2 text-sm">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium wrap-anywhere">
-                        {reply.senderType === 'customer' ? senderName : reply.author?.name}
+                        {reply.senderType === 'customer'
+                          ? senderName
+                          : reply.senderType === 'ai'
+                            ? 'Automated answer'
+                            : reply.author?.name}
                       </span>
                       <Badge variant={reply.senderType === 'customer' ? 'secondary' : 'outline'}>
-                        {reply.senderType === 'customer' ? 'Customer' : 'Agent'}
+                        {senderLabel[reply.senderType]}
                       </Badge>
                     </div>
                     <div className="text-muted-foreground">

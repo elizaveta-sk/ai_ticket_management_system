@@ -38,17 +38,20 @@
 
 - [x] Set up ChatGPT API integration
 - [x] Implement auto-classification (categorize incoming tickets in the background, using OpenAI `gpt-5-nano` through the AI SDK)
+- [x] Retry missed classifications with a recurring sweep of recent uncategorized tickets
 - [x] Implement AI summary endpoint (generate ticket summary, using OpenAI `gpt-5-nano` through the AI SDK)
 - [ ] Implement AI suggested reply endpoint
 - [x] Add a Polish button that improves an agent's draft reply (OpenAI `gpt-5-nano` through the AI SDK)
-- [ ] Build knowledge base structure and seed with initial content
+- [x] Build knowledge base structure and seed with initial content
+- [x] Auto-resolve tickets on arrival from the knowledge base (OpenAI `gpt-5-nano` through the AI SDK), hidden from the ticket list
 - [ ] Integrate AI features into ticket detail page UI
 
 ## Phase 6: Email Integration
 
-- [ ] Set up email provider (SendGrid/Mailgun)
+- [ ] Set up email provider (SendGrid account: domain authentication and API key)
 - [x] Implement inbound email webhook to create tickets
-- [ ] Implement outbound email sending when an agent replies
+- [ ] Map SendGrid Inbound Parse to the inbound email webhook
+- [x] Implement outbound email sending when an agent replies
 - [ ] Handle email threading (replies linked to existing tickets)
 
 ## Phase 7: Dashboard

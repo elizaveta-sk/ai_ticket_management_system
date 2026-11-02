@@ -62,8 +62,8 @@ describe('classifyTicket', () => {
 })
 
 describe('classifyTicketInBackground', () => {
-  it('saves the category, only if the ticket still has none', async () => {
-    await classifyTicketInBackground(ticket)
+  it('saves the category, only if the ticket still has none, and returns it', async () => {
+    await expect(classifyTicketInBackground(ticket)).resolves.toBe('refund_request')
 
     expect(prisma.ticket.updateMany).toHaveBeenCalledWith({
       where: { id: 7, category: null },
@@ -71,10 +71,16 @@ describe('classifyTicketInBackground', () => {
     })
   })
 
+  it('returns null when an agent chose a category first', async () => {
+    vi.mocked(prisma.ticket.updateMany).mockResolvedValue({ count: 0 } as never)
+
+    await expect(classifyTicketInBackground(ticket)).resolves.toBeNull()
+  })
+
   it('does nothing when no API key is configured', async () => {
     vi.mocked(isOpenAIConfigured).mockReturnValue(false)
 
-    await classifyTicketInBackground(ticket)
+    await expect(classifyTicketInBackground(ticket)).resolves.toBeNull()
 
     expect(generateText).not.toHaveBeenCalled()
     expect(prisma.ticket.updateMany).not.toHaveBeenCalled()
@@ -86,7 +92,7 @@ describe('classifyTicketInBackground', () => {
       Object.assign(new Error('Model failed'), { requestBodyValues: { input: 'student email' } }),
     )
 
-    await expect(classifyTicketInBackground(ticket)).resolves.toBeUndefined()
+    await expect(classifyTicketInBackground(ticket)).resolves.toBeNull()
 
     expect(log).toHaveBeenCalledWith('Could not classify ticket 7:', 'Model failed')
     expect(prisma.ticket.updateMany).not.toHaveBeenCalled()
@@ -96,7 +102,7 @@ describe('classifyTicketInBackground', () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.mocked(prisma.ticket.updateMany).mockRejectedValue(new Error('Database down'))
 
-    await expect(classifyTicketInBackground(ticket)).resolves.toBeUndefined()
+    await expect(classifyTicketInBackground(ticket)).resolves.toBeNull()
 
     expect(log).toHaveBeenCalledWith('Could not classify ticket 7:', 'Database down')
   })

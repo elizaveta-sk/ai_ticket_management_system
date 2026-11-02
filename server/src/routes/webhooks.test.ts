@@ -3,14 +3,17 @@ import type { AddressInfo } from 'node:net'
 import express from 'express'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Prisma } from '../generated/prisma/client.ts'
-import { classifyTicketInBackground } from '../lib/classify-ticket.ts'
+import { processTicketInBackground } from '../lib/process-ticket.ts'
 import { prisma } from '../lib/prisma.ts'
 import { webhooksRouter } from './webhooks.ts'
 
 vi.mock('../lib/prisma.ts', () => ({
   prisma: { ticket: { create: vi.fn(), findUnique: vi.fn() } },
 }))
-vi.mock('../lib/classify-ticket.ts', () => ({ classifyTicketInBackground: vi.fn() }))
+vi.mock('../lib/process-ticket.ts', () => ({
+  initialTicketStatus: () => 'new',
+  processTicketInBackground: vi.fn(),
+}))
 vi.mock('../middleware/require-webhook-secret.ts', () => ({
   requireWebhookSecret: (
     _req: express.Request,
@@ -60,13 +63,13 @@ afterAll(() => {
 
 beforeEach(() => {
   vi.mocked(prisma.ticket.create).mockResolvedValue(created as never)
-  vi.mocked(classifyTicketInBackground).mockResolvedValue(undefined)
+  vi.mocked(processTicketInBackground).mockResolvedValue(undefined)
 })
 
 afterEach(() => {
   vi.mocked(prisma.ticket.create).mockReset()
   vi.mocked(prisma.ticket.findUnique).mockReset()
-  vi.mocked(classifyTicketInBackground).mockReset()
+  vi.mocked(processTicketInBackground).mockReset()
 })
 
 describe('POST /api/webhooks/inbound-email', () => {
@@ -75,8 +78,8 @@ describe('POST /api/webhooks/inbound-email', () => {
 
     expect(res.status).toBe(201)
     await expect(res.json()).resolves.toEqual({ ticket: created })
-    expect(classifyTicketInBackground).toHaveBeenCalledTimes(1)
-    expect(classifyTicketInBackground).toHaveBeenCalledWith(created)
+    expect(processTicketInBackground).toHaveBeenCalledTimes(1)
+    expect(processTicketInBackground).toHaveBeenCalledWith(created)
   })
 
   it('creates the ticket from the email', async () => {
@@ -89,18 +92,19 @@ describe('POST /api/webhooks/inbound-email', () => {
         senderName: 'Grace Student',
         subject: 'Refund',
         body: 'Please refund me.',
+        status: 'new',
       },
       select: { id: true, subject: true, body: true, status: true, category: true },
     })
   })
 
   it('answers without waiting for the classification to finish', async () => {
-    vi.mocked(classifyTicketInBackground).mockReturnValue(new Promise(() => {}))
+    vi.mocked(processTicketInBackground).mockReturnValue(new Promise(() => {}))
 
     const res = await deliver(email)
 
     expect(res.status).toBe(201)
-    expect(classifyTicketInBackground).toHaveBeenCalledTimes(1)
+    expect(processTicketInBackground).toHaveBeenCalledTimes(1)
   })
 
   it('does not classify a repeated delivery again', async () => {
@@ -116,7 +120,7 @@ describe('POST /api/webhooks/inbound-email', () => {
 
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toEqual({ ticket: created })
-    expect(classifyTicketInBackground).not.toHaveBeenCalled()
+    expect(processTicketInBackground).not.toHaveBeenCalled()
   })
 
   it('does not classify an email that is rejected', async () => {
@@ -124,6 +128,6 @@ describe('POST /api/webhooks/inbound-email', () => {
 
     expect(res.status).toBe(400)
     expect(prisma.ticket.create).not.toHaveBeenCalled()
-    expect(classifyTicketInBackground).not.toHaveBeenCalled()
+    expect(processTicketInBackground).not.toHaveBeenCalled()
   })
 })

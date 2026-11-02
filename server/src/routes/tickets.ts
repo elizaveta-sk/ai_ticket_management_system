@@ -3,9 +3,12 @@ import {
   ticketIdSchema,
   ticketQuerySchema,
   updateTicketSchema,
+  visibleTicketStatus,
+  visibleTicketStatuses,
 } from 'core/tickets'
 import { Router } from 'express'
 import { Prisma, Role, SenderType } from '../generated/prisma/client.ts'
+import { isEmailConfigured, sendEmail } from '../lib/email.ts'
 import { isOpenAIConfigured } from '../lib/openai.ts'
 import { polishReply } from '../lib/polish-reply.ts'
 import { prisma } from '../lib/prisma.ts'
@@ -54,7 +57,10 @@ ticketsRouter.get('/tickets', requireAuth, async (req, res) => {
     mode: 'insensitive',
   } as const
   const where: Prisma.TicketWhereInput = {
-    status,
+    // Tickets the AI answered need nothing from an agent, unless an agent reopens one.
+    resolvedByAi: false,
+    // Leaves out tickets the AI is still working on.
+    status: status ?? { in: [...visibleTicketStatuses] },
     category: category === 'uncategorized' ? null : category,
     // Only what the table shows, so every result visibly matches the search.
     OR: search
@@ -93,7 +99,7 @@ ticketsRouter.get('/tickets/:id', requireAuth, async (req, res) => {
     res.status(404).json({ error: 'Ticket not found' })
     return
   }
-  res.json({ ticket })
+  res.json({ ticket: { ...ticket, status: visibleTicketStatus(ticket.status) } })
 })
 
 // Admins and agents can both update a ticket's status and category, and assign it
@@ -125,10 +131,14 @@ ticketsRouter.patch('/tickets/:id', requireAuth, async (req, res) => {
   try {
     const ticket = await prisma.ticket.update({
       where: { id: id.data },
-      data: changes,
+      data: {
+        ...changes,
+        // An agent moving an AI-resolved ticket on has taken it over, so it joins the list again.
+        ...(changes.status && changes.status !== 'resolved' && { resolvedByAi: false }),
+      },
       select: ticketDetailSelect,
     })
-    res.json({ ticket })
+    res.json({ ticket: { ...ticket, status: visibleTicketStatus(ticket.status) } })
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
       res.status(404).json({ error: 'Ticket not found' })
@@ -249,16 +259,34 @@ ticketsRouter.post('/tickets/:id/replies', requireAuth, async (req, res) => {
   }
 
   try {
-    const reply = await prisma.ticketReply.create({
+    const { ticket, ...reply } = await prisma.ticketReply.create({
       data: {
         ticketId: id.data,
         senderType: SenderType.agent,
         authorId: req.user!.id,
         body: parsed.data.body,
       },
-      select: replySelect,
+      select: { ...replySelect, ticket: { select: { senderEmail: true, subject: true } } },
     })
-    res.status(201).json({ reply })
+
+    // The reply stays saved if the email fails, and the agent is told so they can follow up.
+    let emailFailed = false
+    if (isEmailConfigured()) {
+      try {
+        await sendEmail({
+          to: ticket.senderEmail,
+          subject: `Re: ${ticket.subject}`,
+          text: reply.body,
+        })
+      } catch (error) {
+        emailFailed = true
+        console.error(
+          `Could not email the reply on ticket ${id.data}:`,
+          error instanceof Error ? error.message : 'unknown error',
+        )
+      }
+    }
+    res.status(201).json({ reply, emailFailed })
   } catch (error) {
     // The foreign key on ticketId: there is no such ticket.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {

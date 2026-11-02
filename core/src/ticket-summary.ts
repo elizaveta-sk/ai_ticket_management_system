@@ -2,7 +2,7 @@ import type { ReplySenderType } from './tickets.ts'
 
 export const summaryInputMaxLength = 60_000
 
-const sender = { customer: 'student', agent: 'agent' } as const
+const sender = { customer: 'student', agent: 'agent', ai: 'automated answer' } as const
 
 // The thread as JSON for the model, oldest first. JSON keeps a student's text inside its
 // own string, so it can't pass as part of the prompt. A long thread keeps the original

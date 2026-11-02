@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router'
 import AdminRoute from './components/AdminRoute.tsx'
 import ProtectedLayout from './components/ProtectedLayout.tsx'
+import ContactPage from './pages/ContactPage.tsx'
 import HomePage from './pages/HomePage.tsx'
 import LoginPage from './pages/LoginPage.tsx'
 import TicketDetailPage from './pages/TicketDetailPage.tsx'
@@ -11,6 +12,7 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/contact" element={<ContactPage />} />
       <Route element={<ProtectedLayout />}>
         <Route index element={<HomePage />} />
         <Route path="tickets" element={<TicketsPage />} />

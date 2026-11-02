@@ -2,6 +2,20 @@ import { z } from 'zod'
 
 export type TicketStatus = 'open' | 'resolved' | 'closed'
 
+// What a ticket passes through before anyone sees it. Never shown outside the server.
+export type InternalTicketStatus = 'new' | 'processing'
+
+export const visibleTicketStatuses = [
+  'open',
+  'resolved',
+  'closed',
+] as const satisfies readonly TicketStatus[]
+
+// A ticket the AI is still working on is, as far as anyone else can tell, an open ticket.
+export function visibleTicketStatus(status: TicketStatus | InternalTicketStatus): TicketStatus {
+  return status === 'new' || status === 'processing' ? 'open' : status
+}
+
 export type TicketCategory = 'general_question' | 'technical_question' | 'refund_request'
 
 export const ticketCategories = [
@@ -10,7 +24,7 @@ export const ticketCategories = [
   'refund_request',
 ] as const satisfies readonly TicketCategory[]
 
-export type ReplySenderType = 'agent' | 'customer'
+export type ReplySenderType = 'agent' | 'customer' | 'ai'
 
 // The shapes the tickets API returns as JSON, so dates are ISO strings.
 export interface Ticket {
@@ -35,7 +49,7 @@ export interface TicketReply {
   bodyHtml: string | null
   senderType: ReplySenderType
   createdAt: string
-  // Empty on customer replies, which come from the ticket's sender.
+  // Empty on customer replies, which come from the ticket's sender, and on AI replies.
   author: { name: string } | null
 }
 
@@ -77,6 +91,37 @@ export const inboundEmailSchema = z.object({
 })
 
 export type InboundEmail = z.infer<typeof inboundEmailSchema>
+
+export const contactNameMaxLength = 100
+export const contactSubjectMaxLength = 200
+
+function contactText(requiredMessage: string, maxLength: number, label: string) {
+  return z
+    .string(requiredMessage)
+    .transform((value) => removeNulls(value).trim())
+    .pipe(
+      z
+        .string()
+        .min(1, requiredMessage)
+        .max(maxLength, `${label} must be at most ${maxLength} characters`),
+    )
+}
+
+// The public contact form, which creates a ticket without an email.
+export const contactFormSchema = z.object({
+  name: contactText('Enter your name', contactNameMaxLength, 'Name'),
+  email: z
+    .email('Enter a valid email address')
+    .max(ticketEmailMaxLength, `Email must be at most ${ticketEmailMaxLength} characters`)
+    .toLowerCase(),
+  subject: contactText('Enter a subject', contactSubjectMaxLength, 'Subject'),
+  message: contactText('Enter a message', ticketBodyMaxLength, 'Message'),
+  // A trap for bots: people never see this field, so anything in it means spam.
+  website: z.string().optional(),
+})
+
+export type ContactFormInput = z.input<typeof contactFormSchema>
+export type ContactFormValues = z.output<typeof contactFormSchema>
 
 // The id in a ticket's URL. Limited to what the database's integer column can hold.
 export const ticketIdSchema = z

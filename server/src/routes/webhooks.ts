@@ -1,7 +1,7 @@
-import { inboundEmailSchema } from 'core/tickets'
+import { inboundEmailSchema, visibleTicketStatus } from 'core/tickets'
 import express, { Router } from 'express'
 import { Prisma } from '../generated/prisma/client.ts'
-import { classifyTicketInBackground } from '../lib/classify-ticket.ts'
+import { initialTicketStatus, processTicketInBackground } from '../lib/process-ticket.ts'
 import { prisma } from '../lib/prisma.ts'
 import { requireWebhookSecret } from '../middleware/require-webhook-secret.ts'
 
@@ -31,12 +31,13 @@ webhooksRouter.post(
           senderName: email.fromName,
           subject: email.subject,
           body: email.text,
+          status: initialTicketStatus(),
         },
         select: ticketSelect,
       })
-      res.status(201).json({ ticket })
+      res.status(201).json({ ticket: { ...ticket, status: visibleTicketStatus(ticket.status) } })
       // Not awaited: the sender has its answer and the category arrives once it's ready.
-      void classifyTicketInBackground(ticket)
+      void processTicketInBackground(ticket)
     } catch (error) {
       // Webhooks get retried. A 2xx tells the sender to stop, without a second ticket.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -44,7 +45,9 @@ webhooksRouter.post(
           where: { messageId: email.messageId },
           select: ticketSelect,
         })
-        res.status(200).json({ ticket })
+        res
+          .status(200)
+          .json({ ticket: ticket && { ...ticket, status: visibleTicketStatus(ticket.status) } })
         return
       }
       throw error

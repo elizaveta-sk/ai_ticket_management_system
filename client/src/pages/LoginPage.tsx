@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
-import { Navigate, useNavigate } from 'react-router'
+import { Link, Navigate, useNavigate } from 'react-router'
 import { z } from 'zod'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -111,6 +111,12 @@ function LoginPage() {
               <Button className="w-full" type="submit" disabled={isSubmitting}>
                 {isSubmitting ? 'Signing in...' : 'Sign in'}
               </Button>
+              <p className="text-center text-sm text-muted-foreground">
+                Need help?{' '}
+                <Link className="underline" to="/contact">
+                  Contact support
+                </Link>
+              </p>
             </FieldGroup>
           </form>
         </CardContent>

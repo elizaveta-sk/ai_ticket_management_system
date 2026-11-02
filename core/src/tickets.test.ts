@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  contactFormSchema,
+  contactSubjectMaxLength,
   createReplySchema,
   inboundEmailSchema,
   ticketBodyMaxLength,
@@ -314,5 +316,48 @@ describe('inboundEmailSchema', () => {
     expect(parsed.fromName).toBe('Student')
     expect(parsed.subject).toBe('Hello')
     expect(parsed.text).toBe('Bodywithnulls')
+  })
+})
+
+describe('contactFormSchema', () => {
+  const form = {
+    name: 'Grace Student',
+    email: 'grace@example.com',
+    subject: 'Refund',
+    message: 'Please refund me.',
+  }
+
+  it('trims the text, lowercases the email and removes NUL characters', () => {
+    const parsed = contactFormSchema.parse({
+      name: '  Grace\0 ',
+      email: 'Grace@Example.com',
+      subject: ' Refund ',
+      message: ' Please\0 refund me. ',
+    })
+
+    expect(parsed).toEqual({
+      name: 'Grace',
+      email: 'grace@example.com',
+      subject: 'Refund',
+      message: 'Please refund me.',
+    })
+  })
+
+  it.each(['name', 'subject', 'message'])('rejects a %s of only spaces', (field) => {
+    expect(contactFormSchema.safeParse({ ...form, [field]: '   ' }).success).toBe(false)
+  })
+
+  it('rejects an invalid email', () => {
+    expect(contactFormSchema.safeParse({ ...form, email: 'not-an-email' }).success).toBe(false)
+  })
+
+  it('applies the length limits', () => {
+    const atLimit = { ...form, subject: 'x'.repeat(contactSubjectMaxLength) }
+    const overLimit = { ...form, subject: 'x'.repeat(contactSubjectMaxLength + 1) }
+    const longMessage = { ...form, message: 'x'.repeat(ticketBodyMaxLength + 1) }
+
+    expect(contactFormSchema.safeParse(atLimit).success).toBe(true)
+    expect(contactFormSchema.safeParse(overLimit).success).toBe(false)
+    expect(contactFormSchema.safeParse(longMessage).success).toBe(false)
   })
 })
