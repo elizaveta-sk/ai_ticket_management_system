@@ -99,6 +99,16 @@ Emails to students set a Reply-To of `ticket-<id>-<signature>@<INBOUND_REPLY_DOM
 - **Content:** `customerReplyBody` (`core/src/email-reply.ts`) removes the quoted earlier message where it recognizes the client's format. Attachments aren't stored; the reply says how many there were.
 - **Not covered:** new emails sent to the `EMAIL_FROM` mailbox don't create tickets, and emails sent before this was configured still have replies going to that mailbox.
 
+## Error monitoring
+
+Sentry (org `liz-g2`, EU region) has one project for each side: `helpdesk-backend` and `helpdesk-frontend`. Without a DSN nothing is sent, and the app works as normal.
+
+- **Server:** `server/src/instrument.ts` uses `@sentry/bun`, needs `SENTRY_DSN`, and is loaded by `--preload` in the `dev` and `start` scripts, so a plain `bun src/index.ts` (as in the e2e tests) has no Sentry. `setupExpressErrorHandler` in `app.ts` stays after every route. Errors the code catches itself never reach Sentry on their own, so new catch blocks that hide a real failure need `reportError` (`server/src/lib/report-error.ts`), which sends only the name, message and stack.
+- **Client:** `client/src/instrument.ts` uses `@sentry/react` and needs `VITE_SENTRY_DSN`. There's no Session Replay, because the pages show students' tickets.
+- **Environment:** `SENTRY_ENVIRONMENT` on the server and `VITE_SENTRY_ENVIRONMENT` on the client, which are `production` on Render and Netlify. Vite reads the client's at build time, so changing it on Netlify takes a new deploy.
+- **Readable client errors:** with `SENTRY_AUTH_TOKEN` in the build, `sentryVitePlugin` (`client/vite.config.ts`) uploads source maps and deletes them from `dist`. Without it, no source maps are built.
+- **Privacy:** tickets hold students' personal data, and the SDK collects more than `sendDefaultPii` suggests: with it off, spans still carried request bodies, IP addresses and the full text of model calls. `scrubSentryEvent` and `scrubSentrySpan` (`core/src/sentry-scrub.ts`) remove these, along with email addresses, headers, query strings and the inbound parse secret. Errors go through `beforeSend` and spans through `beforeSendSpan`; this SDK ignores `beforeSendTransaction`. Don't set `dataCollection` (even `{}` turns on collecting user data) or `sendDefaultPii`. After changing the SDK or its options, check what is actually sent by pointing `SENTRY_DSN` at a local endpoint and searching the requests for test values.
+
 ## Testing
 
 ### Component and unit tests

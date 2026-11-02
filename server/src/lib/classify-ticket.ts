@@ -4,6 +4,7 @@ import { ticketCategories } from 'core/tickets'
 import type { Ticket } from '../generated/prisma/client.ts'
 import { isOpenAIConfigured } from './openai.ts'
 import { prisma } from './prisma.ts'
+import { reportError } from './report-error.ts'
 
 const instructions = `You classify support emails sent by students to an online course provider.
 
@@ -61,6 +62,7 @@ export async function classifyTicketInBackground(ticket: Pick<Ticket, 'id' | 'su
       `Could not classify ticket ${ticket.id}:`,
       error instanceof Error ? error.message : 'unknown error',
     )
+    reportError(error)
     return null
   }
 }

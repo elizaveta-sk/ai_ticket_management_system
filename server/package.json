@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --watch src/index.ts",
-    "start": "bun src/index.ts",
+    "dev": "bun --watch --preload ./src/instrument.ts src/index.ts",
+    "start": "bun --preload ./src/instrument.ts src/index.ts",
     "typecheck": "tsc --noEmit",
     "postinstall": "bunx --bun prisma generate",
     "db:generate": "bunx --bun prisma generate",
@@ -21,6 +21,7 @@
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
     "@sendgrid/mail": "^8.1.6",
+    "@sentry/bun": "^11.10.0",
     "ai": "^7.0.159",
     "better-auth": "^1.7.14",
     "core": "workspace:*",

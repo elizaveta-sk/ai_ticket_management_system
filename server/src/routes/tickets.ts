@@ -19,6 +19,7 @@ import { isOpenAIConfigured } from '../lib/openai.ts'
 import { polishReply } from '../lib/polish-reply.ts'
 import { prisma } from '../lib/prisma.ts'
 import { replyAddressFor } from '../lib/reply-address.ts'
+import { reportError } from '../lib/report-error.ts'
 import { summarizeTicket } from '../lib/summarize-ticket.ts'
 import { rateLimitPerUser } from '../middleware/rate-limit-per-user.ts'
 import { requireAuth } from '../middleware/require-auth.ts'
@@ -248,6 +249,7 @@ ticketsRouter.post('/tickets/:id/replies/polish', requireAuth, polishRateLimit, 
   } catch (error) {
     // Only the message, because the full error includes the draft.
     console.error('Could not polish a reply:', error instanceof Error ? error.message : 'unknown error')
+    reportError(error)
   }
   res.status(502).json({ error: 'Could not polish the reply' })
 })
@@ -295,6 +297,7 @@ ticketsRouter.post('/tickets/:id/summary', requireAuth, summaryRateLimit, async 
       'Could not summarize a ticket:',
       error instanceof Error ? error.message : 'unknown error',
     )
+    reportError(error)
   }
   res.status(502).json({ error: 'Could not summarize the ticket' })
 })
@@ -340,6 +343,7 @@ ticketsRouter.post('/tickets/:id/replies', requireAuth, async (req, res) => {
           `Could not email the reply on ticket ${id.data}:`,
           error instanceof Error ? error.message : 'unknown error',
         )
+        reportError(error)
       }
     }
     res.status(201).json({ reply, emailFailed })

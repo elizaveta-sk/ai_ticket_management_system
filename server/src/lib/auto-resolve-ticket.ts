@@ -9,6 +9,7 @@ import { isEmailConfigured, missingEmailSettings, sendEmail } from './email.ts'
 import { isOpenAIConfigured } from './openai.ts'
 import { prisma } from './prisma.ts'
 import { replyAddressFor } from './reply-address.ts'
+import { reportError } from './report-error.ts'
 import { moveTicketQuery } from './ticket-state.ts'
 
 const instructions = `You answer support emails sent by students to an online course provider, using only the knowledge base below.
@@ -156,6 +157,7 @@ export async function autoResolveTicket(
       `Could not auto-resolve ticket ${ticket.id}:`,
       error instanceof Error ? error.message : 'unknown error',
     )
+    reportError(error)
     return false
   }
 }

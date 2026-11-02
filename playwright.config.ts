@@ -55,7 +55,8 @@ export default defineConfig({
       cwd: clientDir,
       url: clientUrl,
       reuseExistingServer: false,
-      env: { API_PROXY_TARGET: serverUrl },
+      // Vite would otherwise load the real DSN from client/.env, and test errors would reach Sentry.
+      env: { API_PROXY_TARGET: serverUrl, VITE_SENTRY_DSN: '' },
     },
   ],
 })

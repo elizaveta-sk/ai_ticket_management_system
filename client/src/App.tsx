@@ -1,3 +1,4 @@
+import { withSentryReactRouterV7Routing } from '@sentry/react'
 import { Route, Routes } from 'react-router'
 import AdminRoute from './components/AdminRoute.tsx'
 import ProtectedLayout from './components/ProtectedLayout.tsx'
@@ -9,9 +10,12 @@ import TicketDetailPage from './pages/TicketDetailPage.tsx'
 import TicketsPage from './pages/TicketsPage.tsx'
 import UsersPage from './pages/UsersPage.tsx'
 
+// Names page loads in Sentry by route, such as /tickets/:id.
+const SentryRoutes = withSentryReactRouterV7Routing(Routes)
+
 function App() {
   return (
-    <Routes>
+    <SentryRoutes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/contact" element={<ContactPage />} />
       <Route element={<ProtectedLayout />}>
@@ -23,7 +27,7 @@ function App() {
           <Route path="users" element={<UsersPage />} />
         </Route>
       </Route>
-    </Routes>
+    </SentryRoutes>
   )
 }
 

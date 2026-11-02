@@ -4,6 +4,7 @@ import { autoResolveTicket } from './auto-resolve-ticket.ts'
 import { classifyTicketInBackground } from './classify-ticket.ts'
 import { isOpenAIConfigured } from './openai.ts'
 import { prisma } from './prisma.ts'
+import { reportError } from './report-error.ts'
 import { handOverToAgents, startProcessing } from './ticket-state.ts'
 
 // Without a model there's nothing to process, and the ticket should reach agents straight away.
@@ -28,6 +29,7 @@ export async function processTicketInBackground(ticket: Pick<Ticket, 'id' | 'sub
       `Could not process ticket ${ticket.id}:`,
       error instanceof Error ? error.message : 'unknown error',
     )
+    reportError(error)
   }
 }
 
@@ -92,6 +94,7 @@ export async function sweepTickets() {
       'Could not sweep tickets:',
       error instanceof Error ? error.message : 'unknown error',
     )
+    reportError(error)
   }
 }
 

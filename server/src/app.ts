@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/bun'
 import { toNodeHandler } from 'better-auth/node'
 import express from 'express'
 import { auth } from './lib/auth.ts'
@@ -31,3 +32,6 @@ app.get('/api/health', async (_req, res) => {
     res.status(503).json({ status: 'ok', database: 'unreachable' })
   }
 })
+
+// Must come after every route, so that it sees their errors.
+Sentry.setupExpressErrorHandler(app)
