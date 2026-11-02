@@ -44,10 +44,11 @@ function serverError(status: number, error: string) {
 
 describe('TicketReplies', () => {
   describe('email and automated answers', () => {
-    it('labels an automated answer', () => {
+    it('shows an automated answer as a reply from Jane AI', () => {
       renderReplies([{ ...customerReply, senderType: 'ai', body: 'Videos are streamed.' }])
 
-      expect(screen.getByText('Automated answer')).toBeInTheDocument()
+      expect(screen.getByText('Jane AI')).toBeInTheDocument()
+      expect(screen.getByText('Videos are streamed.')).toBeInTheDocument()
       expect(screen.getByText('AI')).toBeInTheDocument()
     })
 

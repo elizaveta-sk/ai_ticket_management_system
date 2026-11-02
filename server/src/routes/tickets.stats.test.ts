@@ -50,8 +50,20 @@ afterEach(() => {
   vi.mocked(prisma.ticket.update).mockReset()
 })
 
-function statsReturn(total: number, open: number, byAi: number, seconds: number | null) {
-  vi.mocked(prisma.$transaction).mockResolvedValue([total, open, byAi, [{ seconds }]] as never)
+function statsReturn(
+  total: number,
+  open: number,
+  byAi: number,
+  seconds: number | null,
+  perDay: { date: string; count: number }[] = [],
+) {
+  vi.mocked(prisma.$transaction).mockResolvedValue([
+    total,
+    open,
+    byAi,
+    [{ seconds }],
+    perDay,
+  ] as never)
 }
 
 describe('GET /api/tickets/stats', () => {
@@ -68,8 +80,20 @@ describe('GET /api/tickets/stats', () => {
         resolvedByAi: 1,
         resolvedByAiPercent: 12.5,
         averageResolutionSeconds: 90.5,
+        ticketsPerDay: expect.any(Array),
       },
     })
+  })
+
+  it('returns 30 days ending today, with zero for days that have no tickets', async () => {
+    const today = new Date().toISOString().slice(0, 10)
+    statsReturn(5, 0, 0, null, [{ date: today, count: 5 }])
+
+    const { stats } = (await (await fetch(`${baseUrl}/stats`)).json()) as { stats: TicketStats }
+
+    expect(stats.ticketsPerDay).toHaveLength(30)
+    expect(stats.ticketsPerDay[29]).toEqual({ date: today, count: 5 })
+    expect(stats.ticketsPerDay[0].count).toBe(0)
   })
 
   it('rounds the percentage to one decimal place', async () => {

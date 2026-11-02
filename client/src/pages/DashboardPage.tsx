@@ -4,6 +4,7 @@ import type { TicketStats } from 'core/tickets'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import TicketsPerDayChart from '../components/TicketsPerDayChart.tsx'
 import { formatDuration } from '../lib/format-duration.ts'
 
 async function fetchStats() {
@@ -47,22 +48,25 @@ function DashboardPage() {
           <AlertDescription>Could not load the dashboard</AlertDescription>
         </Alert>
       ) : (
-        <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-busy={isPending}>
-          {statTiles(stats).map(({ label, value }) => (
-            <Card key={label}>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  <dt>{label}</dt>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <dd className="text-3xl font-semibold tabular-nums">
-                  {isPending ? <Skeleton className="h-9 w-20" /> : value}
-                </dd>
-              </CardContent>
-            </Card>
-          ))}
-        </dl>
+        <>
+          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-busy={isPending}>
+            {statTiles(stats).map(({ label, value }) => (
+              <Card key={label}>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    <dt>{label}</dt>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <dd className="text-3xl font-semibold tabular-nums">
+                    {isPending ? <Skeleton className="h-9 w-20" /> : value}
+                  </dd>
+                </CardContent>
+              </Card>
+            ))}
+          </dl>
+          <TicketsPerDayChart days={stats?.ticketsPerDay} />
+        </>
       )}
     </main>
   )

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  chartDates,
   contactFormSchema,
   contactSubjectMaxLength,
   createReplySchema,
+  fillTicketsPerDay,
   inboundEmailSchema,
   ticketBodyMaxLength,
   ticketEmailMaxLength,
@@ -11,6 +13,33 @@ import {
   ticketReplyMaxLength,
   updateTicketSchema,
 } from './tickets.ts'
+
+describe('chartDates', () => {
+  it('gives 30 UTC days, oldest first, across a month boundary', () => {
+    const dates = chartDates(new Date('2026-11-02T23:59:00Z'))
+
+    expect(dates).toHaveLength(30)
+    expect(dates[0]).toBe('2026-10-04')
+    expect(dates[29]).toBe('2026-11-02')
+  })
+})
+
+describe('fillTicketsPerDay', () => {
+  it('keeps the counts it has, gives other days zero and drops days outside the range', () => {
+    const days = fillTicketsPerDay(
+      [
+        { date: '2026-11-01', count: 4 },
+        { date: '2026-01-01', count: 9 },
+      ],
+      new Date('2026-11-02T12:00:00Z'),
+    )
+
+    expect(days).toHaveLength(30)
+    expect(days[28]).toEqual({ date: '2026-11-01', count: 4 })
+    expect(days[29]).toEqual({ date: '2026-11-02', count: 0 })
+    expect(days.reduce((sum, { count }) => sum + count, 0)).toBe(4)
+  })
+})
 
 describe('createReplySchema', () => {
   it('trims the reply and keeps the line breaks inside it', () => {

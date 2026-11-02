@@ -1,5 +1,8 @@
 import {
+  chartDates,
   createReplySchema,
+  type DailyTicketCount,
+  fillTicketsPerDay,
   ticketIdSchema,
   ticketQuerySchema,
   type TicketStats,
@@ -96,7 +99,8 @@ ticketsRouter.get('/tickets', requireAuth, async (req, res) => {
 // Before /tickets/:id, which would otherwise take "stats" as an id. Tickets the AI is still
 // working on don't count yet, but tickets it resolved do, though they're not on the list.
 ticketsRouter.get('/tickets/stats', requireAuth, async (_req, res) => {
-  const [total, open, resolvedByAi, [average]] = await prisma.$transaction([
+  const now = new Date()
+  const [total, open, resolvedByAi, [average], perDay] = await prisma.$transaction([
     prisma.ticket.count({ where: { status: { in: [...visibleTicketStatuses] } } }),
     prisma.ticket.count({ where: { status: 'open' } }),
     prisma.ticket.count({ where: { resolvedByAi: true } }),
@@ -104,6 +108,13 @@ ticketsRouter.get('/tickets/stats', requireAuth, async (_req, res) => {
       SELECT AVG(EXTRACT(EPOCH FROM ("resolvedAt" - "createdAt")))::float8 AS seconds
       FROM "ticket"
       WHERE "resolvedAt" IS NOT NULL`,
+    // createdAt is stored in UTC without a time zone, so these are UTC days.
+    prisma.$queryRaw<DailyTicketCount[]>`
+      SELECT to_char("createdAt", 'YYYY-MM-DD') AS date, COUNT(*)::int AS count
+      FROM "ticket"
+      WHERE "createdAt" >= ${chartDates(now)[0]}::date
+        AND "status" NOT IN ('new', 'processing')
+      GROUP BY 1`,
   ])
   const stats: TicketStats = {
     total,
@@ -111,6 +122,7 @@ ticketsRouter.get('/tickets/stats', requireAuth, async (_req, res) => {
     resolvedByAi,
     resolvedByAiPercent: total > 0 ? Math.round((resolvedByAi / total) * 1_000) / 10 : null,
     averageResolutionSeconds: average.seconds,
+    ticketsPerDay: fillTicketsPerDay(perDay, now),
   }
   res.json({ stats })
 })

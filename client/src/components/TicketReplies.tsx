@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
-import { createReplySchema, type CreateReplyInput, type TicketReply } from 'core/tickets'
+import { aiAgentName, createReplySchema, type CreateReplyInput, type TicketReply } from 'core/tickets'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -133,7 +133,7 @@ function TicketReplies({
                         {reply.senderType === 'customer'
                           ? senderName
                           : reply.senderType === 'ai'
-                            ? 'Automated answer'
+                            ? aiAgentName
                             : reply.author?.name}
                       </span>
                       <Badge variant={reply.senderType === 'customer' ? 'secondary' : 'outline'}>

@@ -37,6 +37,15 @@ export interface Ticket {
   createdAt: string
 }
 
+// The name on the AI's tickets and replies.
+export const aiAgentName = 'Jane AI'
+
+// One day on the dashboard's chart. The date is a UTC day, as YYYY-MM-DD.
+export interface DailyTicketCount {
+  date: string
+  count: number
+}
+
 // What the dashboard shows. The percentage and average are null with nothing to work them out from.
 export interface TicketStats {
   total: number
@@ -44,6 +53,23 @@ export interface TicketStats {
   resolvedByAi: number
   resolvedByAiPercent: number | null
   averageResolutionSeconds: number | null
+  ticketsPerDay: DailyTicketCount[]
+}
+
+const chartDays = 30
+const dayInMs = 24 * 60 * 60 * 1_000
+
+// The chart's days, oldest first and ending today. UTC, so they don't depend on where the server is.
+export function chartDates(now: Date) {
+  return Array.from({ length: chartDays }, (_, index) =>
+    new Date(now.getTime() - (chartDays - 1 - index) * dayInMs).toISOString().slice(0, 10),
+  )
+}
+
+// The database only returns days that have tickets, but the chart has to show the others as zero.
+export function fillTicketsPerDay(counts: DailyTicketCount[], now: Date): DailyTicketCount[] {
+  const byDate = new Map(counts.map(({ date, count }) => [date, count]))
+  return chartDates(now).map((date) => ({ date, count: byDate.get(date) ?? 0 }))
 }
 
 export interface TicketAssignee {
