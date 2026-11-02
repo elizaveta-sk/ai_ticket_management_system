@@ -64,9 +64,7 @@ ticketsRouter.get('/tickets', requireAuth, async (req, res) => {
     mode: 'insensitive',
   } as const
   const where: Prisma.TicketWhereInput = {
-    // Tickets the AI answered need nothing from an agent, unless an agent reopens one.
-    resolvedByAi: false,
-    // Leaves out tickets the AI is still working on.
+    // Leaves out tickets the AI is still working on, but not the ones it has resolved.
     status: status ?? { in: [...visibleTicketStatuses] },
     category: category === 'uncategorized' ? null : category,
     // Only what the table shows, so every result visibly matches the search.
@@ -97,7 +95,7 @@ ticketsRouter.get('/tickets', requireAuth, async (req, res) => {
 })
 
 // Before /tickets/:id, which would otherwise take "stats" as an id. Tickets the AI is still
-// working on don't count yet, but tickets it resolved do, though they're not on the list.
+// working on don't count yet, the same as on the list.
 ticketsRouter.get('/tickets/stats', requireAuth, async (_req, res) => {
   const now = new Date()
   const [total, open, resolvedByAi, [average], perDay] = await prisma.$transaction([
@@ -141,7 +139,7 @@ ticketsRouter.get('/tickets/:id', requireAuth, async (req, res) => {
 })
 
 async function resolutionChanges(id: number, status: TicketStatus | undefined) {
-  // An agent moving an AI-resolved ticket on has taken it over, so it joins the list again.
+  // An agent moving an AI-resolved ticket on has taken it over, so it stops counting as the AI's.
   if (status === 'open') {
     const ticket = await prisma.ticket.findUnique({ where: { id }, select: { assignedToId: true } })
     return {

@@ -95,7 +95,7 @@ inboundParseRouter.post(
           }),
         },
       }),
-      // The same as an agent reopening it, so an AI-resolved ticket joins the list again.
+      // The same as an agent reopening it, so it stops counting as resolved by the AI.
       prisma.ticket.updateMany({
         where: { id: ticketId, status: { in: [TicketStatus.resolved, TicketStatus.closed] } },
         data: { status: TicketStatus.open, resolvedByAi: false, resolvedAt: null },

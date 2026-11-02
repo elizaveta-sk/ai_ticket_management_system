@@ -43,7 +43,7 @@
 - [ ] Implement AI suggested reply endpoint
 - [x] Add a Polish button that improves an agent's draft reply (OpenAI `gpt-5-nano` through the AI SDK)
 - [x] Build knowledge base structure and seed with initial content
-- [x] Auto-resolve tickets on arrival from the knowledge base (OpenAI `gpt-5-nano` through the AI SDK), hidden from the ticket list
+- [x] Auto-resolve tickets on arrival from the knowledge base (OpenAI `gpt-5-nano` through the AI SDK)
 - [ ] Integrate AI features into ticket detail page UI
 
 ## Phase 6: Email Integration

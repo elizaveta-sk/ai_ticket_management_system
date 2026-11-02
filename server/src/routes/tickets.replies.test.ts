@@ -102,13 +102,13 @@ describe('POST /api/tickets/:id/replies', () => {
 })
 
 describe('GET /api/tickets', () => {
-  it('leaves out tickets the AI resolved or is still working on', async () => {
+  it('includes tickets the AI resolved, and leaves out ones it is still working on', async () => {
     const res = await fetch(baseUrl)
 
     expect(res.status).toBe(200)
     for (const mock of [prisma.ticket.findMany, prisma.ticket.count]) {
       const where = vi.mocked(mock).mock.calls[0][0]?.where
-      expect(where?.resolvedByAi).toBe(false)
+      expect(where).not.toHaveProperty('resolvedByAi')
       expect(where?.status).toEqual({ in: ['open', 'resolved', 'closed'] })
     }
   })
@@ -139,7 +139,7 @@ describe('PATCH /api/tickets/:id', () => {
     })
   }
 
-  it('returns a reopened ticket to the list', async () => {
+  it('stops counting a reopened ticket as resolved by the AI', async () => {
     await patch({ status: 'open' })
 
     expect(vi.mocked(prisma.ticket.update).mock.calls[0][0].data).toEqual({
