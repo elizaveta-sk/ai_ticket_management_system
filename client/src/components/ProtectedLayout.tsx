@@ -1,7 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { Link, Navigate, Outlet, useNavigate } from 'react-router'
+import { Navigate, Outlet, useNavigate } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
 import { authClient } from '../lib/auth-client.ts'
+import AppSidebar from './AppSidebar.tsx'
 
 function ProtectedLayout() {
   const { data: session, isPending } = authClient.useSession()
@@ -10,14 +11,13 @@ function ProtectedLayout() {
 
   if (isPending) {
     return (
-      <div role="status" aria-label="Loading">
-        <div className="flex items-center gap-4 border-b border-border px-6 py-3">
-          <Skeleton className="mr-auto h-5 w-56" />
-          <Skeleton className="h-5 w-20" />
-          <Skeleton className="h-9 w-20" />
+      <div role="status" aria-label="Loading" className="flex min-h-dvh flex-col md:flex-row">
+        <div className="flex flex-col gap-2 border-b bg-sidebar p-4 md:w-56 md:border-r md:border-b-0">
+          <Skeleton className="h-5 w-24" />
+          <Skeleton className="h-5 w-40" />
         </div>
-        <div className="mx-auto max-w-240 p-6">
-          <Skeleton className="h-8 w-32" />
+        <div className="flex-1 p-4">
+          <Skeleton className="h-5 w-32" />
         </div>
       </div>
     )
@@ -32,33 +32,17 @@ function ProtectedLayout() {
   }
 
   return (
-    <>
-      <nav className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-gray-300 bg-white px-6 py-3">
-        <Link className="mr-auto font-semibold hover:underline" to="/">
-          AI Ticket Management System
-        </Link>
-        <Link className="hover:underline" to="/dashboard">
-          Dashboard
-        </Link>
-        <Link className="hover:underline" to="/tickets">
-          Tickets
-        </Link>
-        {session.user.role === 'admin' && (
-          <Link className="hover:underline" to="/users">
-            Users
-          </Link>
-        )}
-        <span>{session.user.name}</span>
-        <button
-          className="cursor-pointer rounded-md border border-gray-300 bg-white px-3.5 py-2"
-          type="button"
-          onClick={handleSignOut}
-        >
-          Sign out
-        </button>
-      </nav>
-      <Outlet />
-    </>
+    // On wider screens the page stays still and each area scrolls by itself.
+    <div className="flex min-h-dvh flex-col md:h-dvh md:flex-row">
+      <AppSidebar
+        userName={session.user.name}
+        isAdmin={session.user.role === 'admin'}
+        onSignOut={handleSignOut}
+      />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <Outlet />
+      </div>
+    </div>
   )
 }
 

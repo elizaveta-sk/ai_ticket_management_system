@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
+import PageHeader from '../components/PageHeader.tsx'
 
 type Health = { status: string; database: string }
 
@@ -15,14 +16,16 @@ function HomePage() {
   const { data: health, isError } = useQuery({ queryKey: ['health'], queryFn: fetchHealth })
 
   return (
-    <main className="mx-auto max-w-240 p-6">
-      <h1 className="mb-4 text-2xl font-bold">Home</h1>
-      {isError && <p>Could not reach the server</p>}
-      {health && (
-        <p>
-          Server: {health.status} · Database: {health.database}
-        </p>
-      )}
+    <main className="min-h-0 flex-1 overflow-y-auto">
+      <PageHeader title="Home" />
+      <div className="p-4">
+        {isError && <p>Could not reach the server</p>}
+        {health && (
+          <p>
+            Server: {health.status} · Database: {health.database}
+          </p>
+        )}
+      </div>
     </main>
   )
 }

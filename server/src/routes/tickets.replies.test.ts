@@ -109,14 +109,16 @@ describe('GET /api/tickets', () => {
     for (const mock of [prisma.ticket.findMany, prisma.ticket.count]) {
       const where = vi.mocked(mock).mock.calls[0][0]?.where
       expect(where).not.toHaveProperty('resolvedByAi')
-      expect(where?.status).toEqual({ in: ['open', 'resolved', 'closed'] })
+      expect(where?.AND).toContainEqual({ status: { in: ['open', 'resolved', 'closed'] } })
     }
   })
 
   it('keeps the status filter when one is chosen', async () => {
     await fetch(`${baseUrl}?status=resolved`)
 
-    expect(vi.mocked(prisma.ticket.findMany).mock.calls[0][0]?.where?.status).toBe('resolved')
+    expect(vi.mocked(prisma.ticket.findMany).mock.calls[0][0]?.where?.AND).toContainEqual(
+      expect.objectContaining({ status: 'resolved' }),
+    )
   })
 })
 

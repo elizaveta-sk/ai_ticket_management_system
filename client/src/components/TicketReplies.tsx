@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { aiAgentName, createReplySchema, type CreateReplyInput, type TicketReply } from 'core/tickets'
+import { useEffect } from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -13,11 +14,14 @@ import { serverErrorMessage } from '../lib/server-error-message.ts'
 
 const senderLabel = { customer: 'Customer', agent: 'Agent', ai: 'AI' } as const
 
-function ReplyForm({ ticketId }: { ticketId: number }) {
+export function ReplyForm({ ticketId }: { ticketId: number }) {
   const queryClient = useQueryClient()
+  // Agents move between tickets while writing, so a draft waits for them in the query cache,
+  // which is cleared on sign-out. A reload loses it.
+  const draftKey = ['reply-draft', ticketId]
   const { control, handleSubmit, reset, setValue } = useForm<CreateReplyInput>({
     resolver: zodResolver(createReplySchema),
-    defaultValues: { body: '' },
+    defaultValues: { body: queryClient.getQueryData<string>(draftKey) ?? '' },
   })
   const addReply = useMutation({
     mutationFn: (values: CreateReplyInput) =>
@@ -25,7 +29,7 @@ function ReplyForm({ ticketId }: { ticketId: number }) {
     onSuccess: async () => {
       // Waits for the refreshed thread, so the reply never appears to vanish.
       await queryClient.invalidateQueries({ queryKey: ['ticket', String(ticketId)] })
-      reset()
+      reset({ body: '' })
     },
   })
   const polishReply = useMutation({
@@ -34,7 +38,12 @@ function ReplyForm({ ticketId }: { ticketId: number }) {
     onSuccess: ({ data }) => setValue('body', data.body, { shouldValidate: true }),
   })
   const isBusy = addReply.isPending || polishReply.isPending
-  const isEmpty = !useWatch({ control, name: 'body' }).trim()
+  const body = useWatch({ control, name: 'body' })
+  const isEmpty = !body.trim()
+
+  useEffect(() => {
+    queryClient.setQueryData(['reply-draft', ticketId], body)
+  }, [queryClient, ticketId, body])
 
   return (
     <form
@@ -44,7 +53,7 @@ function ReplyForm({ ticketId }: { ticketId: number }) {
       })}
       noValidate
     >
-      <FieldGroup>
+      <FieldGroup className="gap-2">
         <Controller
           name="body"
           control={control}
@@ -54,7 +63,7 @@ function ReplyForm({ ticketId }: { ticketId: number }) {
               <Textarea
                 {...field}
                 id="reply-body"
-                rows={4}
+                rows={3}
                 // Read-only rather than disabled, so the cursor stays in the box while it sends.
                 readOnly={isBusy}
                 aria-invalid={fieldState.invalid}
@@ -105,29 +114,21 @@ function ReplyForm({ ticketId }: { ticketId: number }) {
   )
 }
 
-function TicketReplies({
-  ticketId,
-  senderName,
-  replies,
-}: {
-  ticketId: number
-  senderName: string
-  replies: TicketReply[]
-}) {
+function TicketReplies({ senderName, replies }: { senderName: string; replies: TicketReply[] }) {
   return (
-    <section aria-labelledby="replies-heading" className="mt-6">
-      <h2 id="replies-heading" className="mb-3 text-lg font-semibold">
+    <section aria-labelledby="replies-heading">
+      <h3 id="replies-heading" className="mb-2 font-semibold">
         Replies
-      </h2>
+      </h3>
       {replies.length === 0 ? (
-        <p className="mb-4 text-sm text-muted-foreground">No replies yet.</p>
+        <p className="text-muted-foreground">No replies yet.</p>
       ) : (
-        <ol className="mb-4 space-y-3">
+        <ol className="space-y-2">
           {replies.map((reply) => (
             <li key={reply.id}>
-              <Card>
+              <Card size="sm">
                 <CardContent>
-                  <div className="mb-2 text-sm">
+                  <div className="mb-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium wrap-anywhere">
                         {reply.senderType === 'customer'
@@ -151,7 +152,6 @@ function TicketReplies({
           ))}
         </ol>
       )}
-      <ReplyForm ticketId={ticketId} />
     </section>
   )
 }

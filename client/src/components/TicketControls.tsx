@@ -4,6 +4,7 @@ import type { TicketAssignee, TicketCategory, TicketStatus } from 'core/tickets'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { categoryLabels, statusLabels, uncategorizedLabel } from '@/lib/ticket-labels'
+import { fetchAgents } from '../lib/fetch-agents.ts'
 import { serverErrorMessage } from '../lib/server-error-message.ts'
 
 type TicketChanges = {
@@ -28,11 +29,6 @@ const categoryItems: { value: string; label: string }[] = [
   { value: 'refund_request', label: categoryLabels.refund_request },
 ]
 
-async function fetchAgents() {
-  const res = await axios.get<{ agents: TicketAssignee[] }>('/api/agents')
-  return res.data.agents
-}
-
 function TicketSelect<T extends string>({
   label,
   items,
@@ -47,8 +43,9 @@ function TicketSelect<T extends string>({
   onChange: (value: T) => void
 }) {
   return (
-    <div className="flex flex-col gap-1">
-      <span className="font-medium">{label}</span>
+    // Label beside the control in a narrow panel, where three in a row would cut off their text.
+    <div className="flex min-w-0 items-center gap-2 xl:flex-col xl:items-stretch xl:gap-1">
+      <span className="w-22 shrink-0 text-muted-foreground xl:w-auto">{label}</span>
       <Select
         items={items}
         value={value}
@@ -88,8 +85,8 @@ function TicketControls({
   const update = useMutation({
     mutationFn: (changes: TicketChanges) => axios.patch(`/api/tickets/${ticketId}`, changes),
     onSuccess: () =>
-      // Waits for the refreshed ticket, so the old value doesn't flash back. The list
-      // shows status and category too, so it gets refreshed when next opened.
+      // Waits for the refreshed ticket, so the old value doesn't flash back. The list beside
+      // it and the counts in the sidebar depend on these fields too.
       Promise.all([
         queryClient.invalidateQueries({ queryKey: ['ticket', String(ticketId)] }),
         queryClient.invalidateQueries({ queryKey: ['tickets'] }),
@@ -111,8 +108,9 @@ function TicketControls({
       : agentList
 
   return (
-    <div className="text-sm">
-      <div className="flex flex-col gap-3">
+    <div>
+      {/* Status gets less room, because its labels are the shortest. */}
+      <div className="grid gap-2 xl:grid-cols-[6rem_1fr_1fr]">
         <TicketSelect
           label="Status"
           items={statusItems}

@@ -1,13 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import type { TicketDetail } from 'core/tickets'
-import { ArrowLeft } from 'lucide-react'
-import { Link, useParams } from 'react-router'
+import { X } from 'lucide-react'
+import { Link, useLocation, useParams } from 'react-router'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { buttonVariants } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import TicketControls from '../components/TicketControls.tsx'
 import TicketMessage from '../components/TicketMessage.tsx'
-import TicketReplies from '../components/TicketReplies.tsx'
+import TicketReplies, { ReplyForm } from '../components/TicketReplies.tsx'
 import { classificationRefetchInterval } from '../lib/classification-refetch.ts'
 import { sanitizeText } from '../lib/sanitize-text.ts'
 
@@ -36,8 +37,10 @@ async function fetchTicket(id: string) {
   }
 }
 
+// The selected ticket, in a panel beside the list on the tickets page.
 function TicketDetailPage() {
   const { id = '' } = useParams()
+  const { search } = useLocation()
   const {
     data: ticket,
     isPending,
@@ -52,57 +55,67 @@ function TicketDetailPage() {
   })
 
   return (
-    <main className="mx-auto max-w-240 p-6">
-      <Link
-        to="/tickets"
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" />
-        Back to tickets
-      </Link>
+    <section
+      aria-label="Selected ticket"
+      className="flex min-h-0 min-w-0 flex-1 flex-col md:w-80 md:flex-none md:border-l lg:w-96 xl:w-120 2xl:w-xl"
+    >
+      <div className="flex shrink-0 items-start gap-2 border-b px-4 py-3">
+        <div className="min-w-0 flex-1">
+          {ticket && (
+            <>
+              <h2 className="text-base font-semibold wrap-anywhere">{ticket.subject}</h2>
+              <p className="mt-1 wrap-anywhere">
+                <span className="font-medium">{ticket.senderName}</span>{' '}
+                <span className="text-muted-foreground">{ticket.senderEmail}</span>
+              </p>
+              <p className="text-muted-foreground">{new Date(ticket.createdAt).toLocaleString()}</p>
+            </>
+          )}
+        </div>
+        <Link
+          to={{ pathname: '/tickets', search }}
+          aria-label="Back to tickets"
+          title="Back to tickets"
+          className={buttonVariants({ variant: 'ghost', size: 'icon-sm' })}
+        >
+          <X aria-hidden="true" />
+        </Link>
+      </div>
       {isError && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="m-4 w-auto">
           <AlertDescription>Could not load ticket</AlertDescription>
         </Alert>
       )}
-      {ticket === null && <p className="text-muted-foreground">Ticket not found.</p>}
+      {ticket === null && <p className="p-4 text-muted-foreground">Ticket not found.</p>}
       {isPending && (
-        <div data-testid="ticket-loading" className="space-y-4">
-          <Skeleton className="h-8 w-96 max-w-full" />
+        <div data-testid="ticket-loading" className="space-y-4 p-4">
           <Skeleton className="h-5 w-64 max-w-full" />
+          <Skeleton className="h-4 w-48 max-w-full" />
           <Skeleton className="h-40 w-full" />
         </div>
       )}
       {ticket && (
-        <article className="grid gap-6 md:grid-cols-[minmax(0,1fr)_16rem]">
-          <div>
-            <h1 className="mb-3 text-2xl font-bold wrap-anywhere">{ticket.subject}</h1>
-            <div className="mb-4 text-sm">
-              <div className="font-medium wrap-anywhere">{ticket.senderName}</div>
-              <div className="text-muted-foreground wrap-anywhere">{ticket.senderEmail}</div>
-              <div className="text-muted-foreground">
-                {new Date(ticket.createdAt).toLocaleString()}
-              </div>
-            </div>
-            {/* Keyed so a summary never carries over to another ticket. */}
-            <TicketMessage key={ticket.id} ticketId={ticket.id} body={ticket.body} />
-            <TicketReplies
-              ticketId={ticket.id}
-              senderName={ticket.senderName}
-              replies={ticket.replies}
-            />
-          </div>
-          <aside>
+        // Keyed so nothing from one ticket, such as a summary or an error, carries over to another.
+        <article key={ticket.id} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
             <TicketControls
               ticketId={ticket.id}
               status={ticket.status}
               category={ticket.category}
               assignedTo={ticket.assignedTo}
             />
-          </aside>
+            <div>
+              <TicketMessage ticketId={ticket.id} body={ticket.body} />
+            </div>
+            <TicketReplies senderName={ticket.senderName} replies={ticket.replies} />
+          </div>
+          {/* Outside the scrolling area, so the reply box stays in view on a long thread. */}
+          <div className="shrink-0 border-t p-4">
+            <ReplyForm ticketId={ticket.id} />
+          </div>
         </article>
       )}
-    </main>
+    </section>
   )
 }
 

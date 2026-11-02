@@ -4,6 +4,7 @@ import type { TicketStats } from 'core/tickets'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import PageHeader from '../components/PageHeader.tsx'
 import TicketsPerDayChart from '../components/TicketsPerDayChart.tsx'
 import { formatDuration } from '../lib/format-duration.ts'
 
@@ -41,15 +42,15 @@ function DashboardPage() {
   })
 
   return (
-    <main className="mx-auto max-w-240 p-6">
-      <h1 className="mb-4 text-2xl font-bold">Dashboard</h1>
+    <main className="min-h-0 flex-1 overflow-y-auto">
+      <PageHeader title="Dashboard" />
       {isError ? (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="m-4 w-auto">
           <AlertDescription>Could not load the dashboard</AlertDescription>
         </Alert>
       ) : (
-        <>
-          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-busy={isPending}>
+        <div className="p-4">
+          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5" aria-busy={isPending}>
             {statTiles(stats).map(({ label, value }) => (
               <Card key={label}>
                 <CardHeader>
@@ -58,15 +59,15 @@ function DashboardPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <dd className="text-3xl font-semibold tabular-nums">
-                    {isPending ? <Skeleton className="h-9 w-20" /> : value}
+                  <dd className="text-2xl font-semibold tabular-nums">
+                    {isPending ? <Skeleton className="h-8 w-20" /> : value}
                   </dd>
                 </CardContent>
               </Card>
             ))}
           </dl>
           <TicketsPerDayChart days={stats?.ticketsPerDay} />
-        </>
+        </div>
       )}
     </main>
   )

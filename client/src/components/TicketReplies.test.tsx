@@ -1,9 +1,10 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import axios from 'axios'
 import { ticketReplyMaxLength, type TicketReply } from 'core/tickets'
 import { describe, expect, it, vi } from 'vitest'
 import { renderWithQuery } from '../test/render-with-query.tsx'
-import TicketReplies from './TicketReplies.tsx'
+import TicketReplies, { ReplyForm } from './TicketReplies.tsx'
 
 const agentReply: TicketReply = {
   id: 1,
@@ -24,7 +25,12 @@ const customerReply: TicketReply = {
 }
 
 function renderReplies(replies: TicketReply[] = []) {
-  return renderWithQuery(<TicketReplies ticketId={2} senderName="Grace Student" replies={replies} />)
+  return renderWithQuery(
+    <>
+      <TicketReplies senderName="Grace Student" replies={replies} />
+      <ReplyForm ticketId={2} />
+    </>,
+  )
 }
 
 const replyBox = () => screen.getByRole('textbox', { name: 'Your reply' })
@@ -409,6 +415,41 @@ describe('TicketReplies', () => {
 
       await waitFor(() => expect(replyBox()).toHaveValue('Hello there.'))
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('drafts', () => {
+    function form(queryClient: QueryClient, ticketId: number) {
+      return (
+        <QueryClientProvider client={queryClient}>
+          <ReplyForm key={ticketId} ticketId={ticketId} />
+        </QueryClientProvider>
+      )
+    }
+
+    it('keeps a draft per ticket while the agent moves between tickets', () => {
+      const queryClient = new QueryClient()
+      const { rerender } = render(form(queryClient, 2))
+      fireEvent.change(replyBox(), { target: { value: 'Half a reply to Grace' } })
+
+      rerender(form(queryClient, 3))
+      expect(replyBox()).toHaveValue('')
+
+      rerender(form(queryClient, 2))
+      expect(replyBox()).toHaveValue('Half a reply to Grace')
+    })
+
+    it('forgets the draft once the reply is sent', async () => {
+      vi.spyOn(axios, 'post').mockResolvedValue({ data: { emailFailed: false } })
+      const queryClient = new QueryClient()
+      const { rerender } = render(form(queryClient, 2))
+
+      send('Sent already')
+      await waitFor(() => expect(replyBox()).toHaveValue(''))
+
+      rerender(form(queryClient, 3))
+      rerender(form(queryClient, 2))
+      expect(replyBox()).toHaveValue('')
     })
   })
 })

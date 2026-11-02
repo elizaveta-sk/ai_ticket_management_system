@@ -1,5 +1,6 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import axios from 'axios'
+import { Route, Routes } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import { renderWithQuery } from '../test/render-with-query.tsx'
 import TicketsPage from './TicketsPage.tsx'
@@ -13,6 +14,7 @@ const tickets = [
     status: 'resolved',
     category: 'refund_request',
     createdAt: '2026-03-02T12:00:00.000Z',
+    assignedTo: { id: 'agent-1', name: 'Ada Agent' },
   },
   {
     id: 1,
@@ -22,17 +24,23 @@ const tickets = [
     status: 'open',
     category: null,
     createdAt: '2026-03-01T12:00:00.000Z',
+    assignedTo: null,
   },
 ]
+
+// All tickets is the view with every column and filter, newest first.
+function renderPage(route = '/tickets?view=all') {
+  return renderWithQuery(<TicketsPage />, { route })
+}
 
 describe('TicketsPage', () => {
   it('shows the table headers and skeleton rows while loading', () => {
     vi.spyOn(axios, 'get').mockReturnValue(new Promise(() => {}))
 
-    const { container } = renderWithQuery(<TicketsPage />)
+    const { container } = renderPage()
 
     expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'true')
-    for (const name of ['Subject', 'Sender', 'Status', 'Category', 'Created']) {
+    for (const name of ['ID', 'Subject', 'Sender', 'Status', 'Category', 'Assignee', 'Created']) {
       expect(screen.getByRole('columnheader', { name })).toBeInTheDocument()
     }
     expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
@@ -46,7 +54,7 @@ describe('TicketsPage', () => {
         data: { tickets: [{ ...newTicket, category: 'refund_request' }], total: 1 },
       })
 
-    renderWithQuery(<TicketsPage />)
+    renderPage()
 
     const row = (await screen.findByRole('cell', { name: newTicket.subject })).closest('tr')!
     expect(within(row).getByText('Uncategorized')).toBeInTheDocument()
@@ -61,7 +69,7 @@ describe('TicketsPage', () => {
       data: { tickets: [tickets[1]], total: 1 },
     })
 
-    renderWithQuery(<TicketsPage />)
+    renderPage()
 
     await screen.findByRole('cell', { name: tickets[1].subject })
     await new Promise((resolve) => setTimeout(resolve, 2_500))
@@ -71,16 +79,15 @@ describe('TicketsPage', () => {
   it('requests /api/tickets and shows a row for each ticket with readable labels', async () => {
     const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
-    const { container } = renderWithQuery(<TicketsPage />)
+    const { container } = renderPage()
 
     const row = (await screen.findByRole('cell', { name: tickets[0].subject })).closest('tr')!
     expect(within(row).getByText('Grace Student')).toBeInTheDocument()
     expect(within(row).getByText('grace@example.com')).toBeInTheDocument()
     expect(within(row).getByText('Resolved')).toBeInTheDocument()
     expect(within(row).getByText('Refund Request')).toBeInTheDocument()
-    expect(
-      within(row).getByText(new Date(tickets[0].createdAt).toLocaleString()),
-    ).toBeInTheDocument()
+    expect(within(row).getByText('Ada Agent')).toBeInTheDocument()
+    expect(within(row).getByTitle(new Date(tickets[0].createdAt).toLocaleString())).toBeInTheDocument()
 
     expect(get).toHaveBeenCalledWith('/api/tickets', {
       params: { sortBy: 'createdAt', sortOrder: 'desc', page: 1, pageSize: 20 },
@@ -92,22 +99,22 @@ describe('TicketsPage', () => {
   it('links each subject to the ticket details', async () => {
     vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
-    renderWithQuery(<TicketsPage />)
+    renderPage()
 
     expect(await screen.findByRole('link', { name: tickets[0].subject })).toHaveAttribute(
       'href',
-      '/tickets/2',
+      '/tickets/2?view=all',
     )
     expect(screen.getByRole('link', { name: tickets[1].subject })).toHaveAttribute(
       'href',
-      '/tickets/1',
+      '/tickets/1?view=all',
     )
   })
 
   it('shows Uncategorized for a ticket without a category', async () => {
     vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
-    renderWithQuery(<TicketsPage />)
+    renderPage()
 
     const row = (await screen.findByRole('cell', { name: tickets[1].subject })).closest('tr')!
     expect(within(row).getByText('Uncategorized')).toBeInTheDocument()
@@ -117,7 +124,7 @@ describe('TicketsPage', () => {
   it('keeps the newest-first order sent by the server', async () => {
     vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
-    renderWithQuery(<TicketsPage />)
+    renderPage()
     await screen.findByRole('cell', { name: tickets[0].subject })
 
     const [, firstRow, secondRow] = screen.getAllByRole('row')
@@ -128,7 +135,7 @@ describe('TicketsPage', () => {
   it('marks Created as the sorted column to begin with', async () => {
     vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
-    renderWithQuery(<TicketsPage />)
+    renderPage()
     await screen.findByRole('cell', { name: tickets[0].subject })
 
     expect(screen.getByRole('columnheader', { name: 'Created' })).toHaveAttribute(
@@ -147,7 +154,7 @@ describe('TicketsPage', () => {
       .mockResolvedValueOnce({ data: { tickets, total: tickets.length } })
       .mockResolvedValueOnce({ data: { tickets: [tickets[1], tickets[0]], total: 2 } })
 
-    renderWithQuery(<TicketsPage />)
+    renderPage()
     await screen.findByRole('cell', { name: tickets[0].subject })
 
     fireEvent.click(screen.getByRole('button', { name: 'Subject' }))
@@ -179,7 +186,7 @@ describe('TicketsPage', () => {
   ])('sorts %s ascending, then descending, then ascending again', async (name, sortBy) => {
     const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
-    renderWithQuery(<TicketsPage />)
+    renderPage()
     await screen.findByRole('cell', { name: tickets[0].subject })
 
     for (const sortOrder of ['asc', 'desc', 'asc']) {
@@ -198,7 +205,7 @@ describe('TicketsPage', () => {
   it('sorts Created newest first when returning to it from another column', async () => {
     const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
-    renderWithQuery(<TicketsPage />)
+    renderPage()
     await screen.findByRole('cell', { name: tickets[0].subject })
 
     fireEvent.click(screen.getByRole('button', { name: 'Created' }))
@@ -222,7 +229,7 @@ describe('TicketsPage', () => {
       .mockResolvedValueOnce({ data: { tickets, total: tickets.length } })
       .mockReturnValueOnce(new Promise(() => {}))
 
-    const { container } = renderWithQuery(<TicketsPage />)
+    const { container } = renderPage()
     await screen.findByRole('cell', { name: tickets[0].subject })
 
     fireEvent.click(screen.getByRole('button', { name: 'Subject' }))
@@ -235,7 +242,7 @@ describe('TicketsPage', () => {
   it('sorts by one column only, even with shift held', async () => {
     const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
-    renderWithQuery(<TicketsPage />)
+    renderPage()
     await screen.findByRole('cell', { name: tickets[0].subject })
 
     fireEvent.click(screen.getByRole('button', { name: 'Subject' }), { shiftKey: true })
@@ -267,7 +274,7 @@ describe('TicketsPage', () => {
     it('starts with every ticket and sends no filters', async () => {
       const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
-      renderWithQuery(<TicketsPage />)
+      renderPage()
       await screen.findByRole('cell', { name: tickets[0].subject })
 
       expect(screen.getByRole('combobox', { name: 'Filter by status' })).toHaveTextContent(
@@ -285,7 +292,7 @@ describe('TicketsPage', () => {
         .mockResolvedValueOnce({ data: { tickets, total: tickets.length } })
         .mockResolvedValueOnce({ data: { tickets: [tickets[0]], total: 1 } })
 
-      renderWithQuery(<TicketsPage />)
+      renderPage()
       await screen.findByRole('cell', { name: tickets[1].subject })
 
       await choose('Filter by status', 'Resolved')
@@ -300,7 +307,7 @@ describe('TicketsPage', () => {
     it('offers the three categories and Uncategorized', async () => {
       vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets: [], total: 0 } })
 
-      renderWithQuery(<TicketsPage />)
+      renderPage()
       await screen.findByText('No tickets found.')
 
       fireEvent.click(screen.getByRole('combobox', { name: 'Filter by category' }))
@@ -318,7 +325,7 @@ describe('TicketsPage', () => {
     it('sends a search to the server once typing pauses, not on every keystroke', async () => {
       const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
-      renderWithQuery(<TicketsPage />)
+      renderPage()
       await screen.findByRole('cell', { name: tickets[0].subject })
       get.mockClear()
 
@@ -342,7 +349,7 @@ describe('TicketsPage', () => {
     it('sends no new request for a search of only spaces', async () => {
       const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
-      renderWithQuery(<TicketsPage />)
+      renderPage()
       await screen.findByRole('cell', { name: tickets[0].subject })
       get.mockClear()
 
@@ -359,7 +366,7 @@ describe('TicketsPage', () => {
         .mockResolvedValueOnce({ data: { tickets, total: tickets.length } })
         .mockResolvedValueOnce({ data: { tickets: [], total: 0 } })
 
-      renderWithQuery(<TicketsPage />)
+      renderPage()
       await screen.findByRole('cell', { name: tickets[0].subject })
 
       const input = screen.getByRole('searchbox', { name: 'Search tickets' })
@@ -378,7 +385,7 @@ describe('TicketsPage', () => {
     ])('asks the server for the %s category', async (option, category) => {
       const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
-      renderWithQuery(<TicketsPage />)
+      renderPage()
       await screen.findByRole('cell', { name: tickets[0].subject })
 
       await choose('Filter by category', option)
@@ -389,7 +396,7 @@ describe('TicketsPage', () => {
     it('combines filters with each other and with the sort', async () => {
       const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
-      renderWithQuery(<TicketsPage />)
+      renderPage()
       await screen.findByRole('cell', { name: tickets[0].subject })
 
       fireEvent.click(screen.getByRole('button', { name: 'Subject' }))
@@ -411,7 +418,7 @@ describe('TicketsPage', () => {
     it('stops sending a filter once All is chosen again', async () => {
       const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
-      renderWithQuery(<TicketsPage />)
+      renderPage()
       await screen.findByRole('cell', { name: tickets[0].subject })
 
       await choose('Filter by status', 'Closed')
@@ -433,7 +440,7 @@ describe('TicketsPage', () => {
         .mockResolvedValueOnce({ data: { tickets: [], total: 0 } })
         .mockResolvedValueOnce({ data: { tickets, total: tickets.length } })
 
-      renderWithQuery(<TicketsPage />)
+      renderPage()
       await screen.findByRole('cell', { name: tickets[0].subject })
 
       await choose('Filter by status', 'Closed')
@@ -452,7 +459,7 @@ describe('TicketsPage', () => {
         .mockRejectedValueOnce(new Error('Request failed with status code 500'))
         .mockResolvedValueOnce({ data: { tickets, total: tickets.length } })
 
-      renderWithQuery(<TicketsPage />)
+      renderPage()
       await screen.findByRole('cell', { name: tickets[0].subject })
 
       await choose('Filter by status', 'Closed')
@@ -472,7 +479,7 @@ describe('TicketsPage', () => {
     it('requests the first page and shows the total and page count', async () => {
       const get = vi.spyOn(axios, 'get').mockResolvedValue(onePage(45))
 
-      renderWithQuery(<TicketsPage />)
+      renderPage()
 
       expect(await screen.findByText('45 tickets')).toBeInTheDocument()
       expect(screen.getByText('Page 1 of 3')).toBeInTheDocument()
@@ -482,7 +489,7 @@ describe('TicketsPage', () => {
     it('shows no page controls while loading', () => {
       vi.spyOn(axios, 'get').mockReturnValue(new Promise(() => {}))
 
-      renderWithQuery(<TicketsPage />)
+      renderPage()
 
       expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument()
     })
@@ -490,7 +497,7 @@ describe('TicketsPage', () => {
     it('disables both buttons when everything fits on one page', async () => {
       vi.spyOn(axios, 'get').mockResolvedValue(onePage(1))
 
-      renderWithQuery(<TicketsPage />)
+      renderPage()
 
       expect(await screen.findByText('1 ticket')).toBeInTheDocument()
       expect(screen.getByText('Page 1 of 1')).toBeInTheDocument()
@@ -501,7 +508,7 @@ describe('TicketsPage', () => {
     it('moves between pages and disables the buttons at each end', async () => {
       const get = vi.spyOn(axios, 'get').mockResolvedValue(onePage(25))
 
-      renderWithQuery(<TicketsPage />)
+      renderPage()
       await screen.findByText('Page 1 of 2')
       expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
 
@@ -522,7 +529,7 @@ describe('TicketsPage', () => {
         .mockResolvedValueOnce(onePage(25))
         .mockReturnValueOnce(new Promise(() => {}))
 
-      renderWithQuery(<TicketsPage />)
+      renderPage()
       await screen.findByText('Page 1 of 2')
 
       fireEvent.click(screen.getByRole('button', { name: 'Next' }))
@@ -533,7 +540,7 @@ describe('TicketsPage', () => {
 
     async function goToPageTwo() {
       const get = vi.spyOn(axios, 'get').mockResolvedValue(onePage(25))
-      renderWithQuery(<TicketsPage />)
+      renderPage()
       await screen.findByText('Page 1 of 2')
       fireEvent.click(screen.getByRole('button', { name: 'Next' }))
       await screen.findByText('Page 2 of 2')
@@ -585,7 +592,7 @@ describe('TicketsPage', () => {
         .mockResolvedValueOnce({ data: { tickets: [], total: 20 } })
         .mockResolvedValue(onePage(20))
 
-      renderWithQuery(<TicketsPage />)
+      renderPage()
       await screen.findByText('Page 1 of 2')
 
       // The first page was refetched with a smaller total before Next took effect.
@@ -601,7 +608,7 @@ describe('TicketsPage', () => {
   it('shows an empty message and no table when there are no tickets', async () => {
     vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets: [], total: 0 } })
 
-    renderWithQuery(<TicketsPage />)
+    renderPage()
 
     expect(await screen.findByText('No tickets found.')).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
@@ -610,9 +617,148 @@ describe('TicketsPage', () => {
   it('shows an error and no table when the request fails', async () => {
     vi.spyOn(axios, 'get').mockRejectedValue(new Error('Request failed with status code 500'))
 
-    renderWithQuery(<TicketsPage />)
+    renderPage()
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load tickets')
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+  describe('views', () => {
+    const ticketsApi = () =>
+      vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
+
+    it('opens Needs a person by default, longest waiting first', async () => {
+      const get = ticketsApi()
+
+      renderPage('/tickets')
+
+      expect(screen.getByRole('heading', { name: 'Needs a person' })).toBeInTheDocument()
+      await screen.findByRole('cell', { name: tickets[0].subject })
+      expect(get.mock.lastCall?.[1]?.params).toMatchObject({
+        view: 'open',
+        sortBy: 'createdAt',
+        sortOrder: 'asc',
+      })
+    })
+
+    it('treats an unknown view in the URL as the default', () => {
+      vi.spyOn(axios, 'get').mockReturnValue(new Promise(() => {}))
+
+      renderPage('/tickets?view=nope')
+
+      expect(screen.getByRole('heading', { name: 'Needs a person' })).toBeInTheDocument()
+    })
+
+    it('shows finished work newest first', async () => {
+      const get = ticketsApi()
+
+      renderPage('/tickets?view=closed')
+
+      await screen.findByRole('cell', { name: tickets[0].subject })
+      expect(get.mock.lastCall?.[1]?.params).toMatchObject({ view: 'closed', sortOrder: 'desc' })
+    })
+
+    it('shows status only in All tickets, where it varies', () => {
+      vi.spyOn(axios, 'get').mockReturnValue(new Promise(() => {}))
+
+      renderPage('/tickets')
+
+      expect(screen.queryByRole('columnheader', { name: 'Status' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('combobox', { name: 'Filter by status' })).not.toBeInTheDocument()
+    })
+
+    it('offers only the filters that can narrow the view', () => {
+      vi.spyOn(axios, 'get').mockReturnValue(new Promise(() => {}))
+
+      const { unmount } = renderPage('/tickets?view=refunds')
+      expect(screen.queryByRole('combobox', { name: 'Filter by category' })).not.toBeInTheDocument()
+      unmount()
+
+      renderPage('/tickets?view=unassigned')
+      expect(screen.queryByRole('combobox', { name: 'Filter by assignee' })).not.toBeInTheDocument()
+    })
+
+    it('filters by assignee, loading the agents only when asked', async () => {
+      const get = vi.spyOn(axios, 'get').mockImplementation(async (url) =>
+        url === '/api/agents'
+          ? { data: { agents: [{ id: 'agent-1', name: 'Ada Agent' }] } }
+          : { data: { tickets, total: tickets.length } },
+      )
+
+      renderPage()
+      await screen.findByRole('cell', { name: tickets[0].subject })
+      expect(get).not.toHaveBeenCalledWith('/api/agents')
+
+      fireEvent.click(screen.getByRole('combobox', { name: 'Filter by assignee' }))
+      const option = await screen.findByRole('option', { name: 'Ada Agent' })
+      fireEvent.pointerDown(option)
+      fireEvent.click(option)
+
+      await waitFor(() =>
+        expect(get.mock.lastCall?.[1]?.params).toMatchObject({ assignedToId: 'agent-1' }),
+      )
+    })
+
+    it('marks an old open ticket but not an old finished one', async () => {
+      ticketsApi()
+
+      renderPage()
+
+      const open = (await screen.findByRole('cell', { name: tickets[1].subject })).closest('tr')!
+      const resolved = screen.getByRole('cell', { name: tickets[0].subject }).closest('tr')!
+      expect(within(open).getByRole('time')).toHaveClass('text-destructive')
+      expect(within(resolved).getByRole('time')).not.toHaveClass('text-destructive')
+    })
+  })
+
+  describe('with a ticket open', () => {
+    function renderWithPanel(route = '/tickets/2?view=closed') {
+      return renderWithQuery(
+        <Routes>
+          <Route path="/tickets" element={<TicketsPage />}>
+            <Route path=":id" element={<p>Panel for this ticket</p>} />
+          </Route>
+        </Routes>,
+        { route },
+      )
+    }
+
+    it('shows the panel beside the list and marks the row', async () => {
+      vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
+
+      renderWithPanel()
+
+      expect(screen.getByText('Panel for this ticket')).toBeInTheDocument()
+      const row = (await screen.findByRole('cell', { name: tickets[0].subject })).closest('tr')!
+      expect(row).toHaveAttribute('aria-current', 'true')
+      expect(screen.getByRole('cell', { name: tickets[1].subject }).closest('tr')).not.toHaveAttribute(
+        'aria-current',
+      )
+    })
+
+    it('drops the columns that do not fit beside the panel', async () => {
+      vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
+
+      renderWithPanel()
+
+      await screen.findByRole('cell', { name: tickets[0].subject })
+      for (const name of ['Subject', 'Sender', 'Assignee', 'Created']) {
+        expect(screen.getByRole('columnheader', { name })).toBeInTheDocument()
+      }
+      expect(screen.queryByRole('columnheader', { name: 'ID' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('columnheader', { name: 'Category' })).not.toBeInTheDocument()
+    })
+
+    it('opens a ticket from anywhere on its row, staying in the view', async () => {
+      vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
+
+      renderWithPanel('/tickets?view=closed')
+      expect(screen.queryByText('Panel for this ticket')).not.toBeInTheDocument()
+
+      const row = (await screen.findByRole('cell', { name: tickets[0].subject })).closest('tr')!
+      fireEvent.click(within(row).getByText('Grace Student'))
+
+      expect(await screen.findByText('Panel for this ticket')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Closed' })).toBeInTheDocument()
+    })
   })
 })

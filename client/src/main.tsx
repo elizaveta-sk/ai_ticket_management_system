@@ -11,6 +11,8 @@ import App from './App.tsx'
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false } },
 })
+// Nothing observes a reply draft while another ticket is open, and it must not expire then.
+queryClient.setQueryDefaults(['reply-draft'], { gcTime: Infinity })
 
 createRoot(document.getElementById('root')!, {
   onUncaughtError: reactErrorHandler(),

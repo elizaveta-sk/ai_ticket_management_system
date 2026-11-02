@@ -72,6 +72,15 @@ A ticket moves `new` -> `processing` -> `resolved` or `open`, through `moveTicke
 - **Jane AI is not a login:** it has no account row, so it can't sign in, and `GET /api/users` and `GET /api/agents` leave it out. `PUT` and `DELETE /api/users/:id` return 404 for it, and `PATCH /api/tickets/:id` won't assign tickets to it. `TicketControls` still shows it as the current assignee on its own tickets.
 - **Enum migrations:** PostgreSQL can't use a new enum value in the migration that adds it, so setting a default to one takes a second migration.
 
+## Tickets page
+
+`AppSidebar` lists the ticket views with their counts (`GET /api/tickets/view-counts`), for every page under `ProtectedLayout`. `/tickets` shows a view chosen by `?view=` (`client/src/lib/ticket-views.ts`), and `/tickets/:id` is a nested route that opens that ticket in a panel beside the list.
+
+- **Views:** the names are in `ticketViews` (`core/src/tickets.ts`), and each view's filter is in `viewFilters` (`server/src/routes/tickets.ts`), which both the list and the counts use. `GET /api/tickets` defaults to `all`, while the page defaults to `open` ("Needs a person"). Assigned to me is hidden from admins, because tickets can only be assigned to agents.
+- **Polling:** the list and the counts refetch every 30 seconds. Both query keys start with `tickets`, so invalidating that refreshes both.
+- **Narrow screens:** the open ticket sits to the right of the list from the `md` breakpoint up, and the list drops to subject and age below `xl`. On a phone, the ticket replaces the list.
+- **Reply drafts:** `ReplyForm` keeps each ticket's draft in the query cache under `reply-draft` (no expiry, set in `main.tsx`), so moving between tickets doesn't lose it. Sign-out clears it along with the rest of the cache, and a reload loses it.
+
 ## Dashboard
 
 `/dashboard` (`client/src/pages/DashboardPage.tsx`) shows `GET /api/tickets/stats`, for any signed-in user. Total counts every ticket that has finished processing, including AI-resolved ones, the same as the ticket list's total. The percentage is AI-resolved tickets out of that total. The average is from `createdAt` to `resolvedAt` across all resolved tickets, by AI or agents, and tickets resolved before `resolvedAt` existed don't count. `resolvedAt` keeps the first resolution, stays set when a ticket is closed, and clears when it's reopened. Below the numbers, `TicketsPerDayChart` shows tickets created on each of the last 30 days, using shadcn's `chart` component (Recharts). It counts the same tickets as the total, and its days are UTC. Recharts can't draw in jsdom, so component tests check the screen-reader table beside the chart.

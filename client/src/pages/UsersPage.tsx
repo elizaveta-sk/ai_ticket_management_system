@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import CreateUserDialog from '../components/CreateUserDialog.tsx'
+import PageHeader from '../components/PageHeader.tsx'
 import UsersTable, { type User } from '../components/UsersTable.tsx'
 
 async function fetchUsers() {
@@ -16,17 +17,18 @@ function UsersPage() {
   })
 
   return (
-    <main className="mx-auto max-w-240 p-6">
-      <div className="mb-4 flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold">Users</h1>
-        <CreateUserDialog />
-      </div>
+    <main className="min-h-0 flex-1 overflow-y-auto">
+      <PageHeader title="Users">
+        <div className="ml-auto">
+          <CreateUserDialog />
+        </div>
+      </PageHeader>
       {isError && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="m-4 w-auto">
           <AlertDescription>Could not load users</AlertDescription>
         </Alert>
       )}
-      {users?.length === 0 && <p className="text-muted-foreground">No users found.</p>}
+      {users?.length === 0 && <p className="p-4 text-muted-foreground">No users found.</p>}
       {(isPending || (users && users.length > 0)) && (
         <UsersTable users={users} isPending={isPending} />
       )}

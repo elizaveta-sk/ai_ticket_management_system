@@ -35,7 +35,23 @@ export interface Ticket {
   status: TicketStatus
   category: TicketCategory | null
   createdAt: string
+  assignedTo: TicketAssignee | null
 }
+
+// The ready-made lists of tickets in the sidebar. See viewFilters in the tickets route.
+export const ticketViews = [
+  'open',
+  'mine',
+  'unassigned',
+  'refunds',
+  'resolved_by_ai',
+  'resolved_by_agent',
+  'closed',
+  'all',
+] as const
+
+export type TicketView = (typeof ticketViews)[number]
+export type TicketViewCounts = Record<TicketView, number>
 
 // The name on the AI's tickets and replies.
 export const aiAgentName = 'Jane AI'
@@ -91,7 +107,6 @@ export interface TicketReply {
 // A single ticket: the list's fields plus what only its own page shows.
 export interface TicketDetail extends Ticket {
   body: string
-  assignedTo: TicketAssignee | null
   replies: TicketReply[]
 }
 
@@ -210,6 +225,12 @@ export const ticketQuerySchema = z.strictObject({
     .enum(['subject', 'senderName', 'status', 'category', 'createdAt'], 'Invalid sort column')
     .default('createdAt'),
   sortOrder: z.enum(['asc', 'desc'], 'Invalid sort order').default('desc'),
+  view: z.enum(ticketViews, 'Invalid view').default('all'),
+  // NUL characters would make PostgreSQL reject the query.
+  assignedToId: z
+    .string('Invalid assignee')
+    .regex(/^[^\0]+$/, 'Invalid assignee')
+    .optional(),
   status: z.enum(['open', 'resolved', 'closed'], 'Invalid status').optional(),
   // "uncategorized" selects the tickets whose category is still empty.
   category: z

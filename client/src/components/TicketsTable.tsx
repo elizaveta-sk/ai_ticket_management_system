@@ -10,7 +10,7 @@ import {
 } from '@tanstack/react-table'
 import type { Ticket } from 'core/tickets'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
-import { Link } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -21,50 +21,120 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
+import { formatAge, isOverdue } from '../lib/format-age.ts'
 import { TicketCategoryText, TicketStatusBadge } from './TicketFields.tsx'
 
 const features = tableFeatures({ rowSortingFeature, rowPaginationFeature })
 const column = createColumnHelper<typeof features, Ticket>()
 const noTickets: Ticket[] = []
 
-// Column ids are the sortBy values accepted by ticketSortSchema.
-const columns = column.columns([
-  column.accessor('subject', {
-    header: 'Subject',
-    cell: ({ getValue, row }) => (
-      <Link
-        to={`/tickets/${row.original.id}`}
-        className="block max-w-72 truncate font-medium hover:underline"
+function SubjectLink({ ticket, className }: { ticket: Ticket; className: string }) {
+  const { search } = useLocation()
+  return (
+    // Keeps the current view in the URL, so closing the ticket returns to it.
+    <Link
+      to={{ pathname: `/tickets/${ticket.id}`, search }}
+      title={ticket.subject}
+      className={cn('block truncate font-medium hover:underline', className)}
+    >
+      {ticket.subject}
+    </Link>
+  )
+}
+
+// Column ids are the sortBy values accepted by ticketQuerySchema. The rest can't be sorted.
+const idColumn = column.accessor('id', {
+  header: 'ID',
+  enableSorting: false,
+  cell: ({ getValue }) => <span className="text-muted-foreground tabular-nums">{getValue()}</span>,
+})
+const subjectColumn = column.accessor('subject', {
+  header: 'Subject',
+  cell: ({ row }) => <SubjectLink ticket={row.original} className="max-w-72" />,
+})
+const compactSubjectColumn = column.accessor('subject', {
+  header: 'Subject',
+  cell: ({ row }) => <SubjectLink ticket={row.original} className="max-w-32 lg:max-w-52 2xl:max-w-72" />,
+})
+const senderColumn = column.accessor('senderName', {
+  header: 'Sender',
+  cell: ({ row }) => (
+    <>
+      {row.original.senderName}{' '}
+      <span className="ml-1 hidden text-muted-foreground xl:inline">{row.original.senderEmail}</span>
+    </>
+  ),
+})
+const compactSenderColumn = column.accessor('senderName', {
+  header: 'Sender',
+  cell: ({ row }) => <span title={row.original.senderEmail}>{row.original.senderName}</span>,
+})
+const statusColumn = column.accessor('status', {
+  header: 'Status',
+  cell: ({ getValue }) => <TicketStatusBadge status={getValue()} />,
+})
+const categoryColumn = column.accessor('category', {
+  header: 'Category',
+  cell: ({ getValue, row }) => (
+    <TicketCategoryText category={getValue()} isOpen={row.original.status === 'open'} />
+  ),
+})
+const assigneeColumn = column.accessor('assignedTo', {
+  header: 'Assignee',
+  enableSorting: false,
+  cell: ({ getValue }) =>
+    getValue()?.name ?? <span className="text-muted-foreground">Unassigned</span>,
+})
+const createdColumn = column.accessor('createdAt', {
+  header: 'Created',
+  sortDescFirst: true,
+  cell: ({ getValue, row }) => {
+    const created = getValue()
+    return (
+      <time
+        dateTime={created}
+        title={new Date(created).toLocaleString()}
+        className={
+          row.original.status === 'open' && isOverdue(created)
+            ? 'font-medium text-destructive'
+            : 'text-muted-foreground'
+        }
       >
-        {getValue()}
-      </Link>
-    ),
-  }),
-  column.accessor('senderName', {
-    header: 'Sender',
-    cell: ({ row }) => (
-      <>
-        <div>{row.original.senderName}</div>
-        <div className="text-muted-foreground">{row.original.senderEmail}</div>
-      </>
-    ),
-  }),
-  column.accessor('status', {
-    header: 'Status',
-    cell: ({ getValue }) => <TicketStatusBadge status={getValue()} />,
-  }),
-  column.accessor('category', {
-    header: 'Category',
-    cell: ({ getValue }) => <TicketCategoryText category={getValue()} />,
-  }),
-  column.accessor('createdAt', {
-    header: 'Created',
-    sortDescFirst: true,
-    cell: ({ getValue }) => (
-      <span className="text-muted-foreground">{new Date(getValue()).toLocaleString()}</span>
-    ),
-  }),
+        {formatAge(created)}
+      </time>
+    )
+  },
+})
+
+const allColumns = column.columns([
+  idColumn,
+  subjectColumn,
+  senderColumn,
+  statusColumn,
+  categoryColumn,
+  assigneeColumn,
+  createdColumn,
 ])
+const columnsWithoutStatus = column.columns([
+  idColumn,
+  subjectColumn,
+  senderColumn,
+  categoryColumn,
+  assigneeColumn,
+  createdColumn,
+])
+// With a ticket open beside the table, only the columns that fit in the space left.
+const compactColumns = column.columns([
+  compactSubjectColumn,
+  compactSenderColumn,
+  assigneeColumn,
+  createdColumn,
+])
+
+// Beside a ticket on a smaller screen, the list keeps only the subject and the age.
+const narrowHiddenColumn = 'hidden xl:table-cell'
+const narrowHiddenColumnIds = ['senderName', 'assignedTo']
 
 const sortIcons = { asc: ArrowUp, desc: ArrowDown }
 const ariaSort = { asc: 'ascending', desc: 'descending' } as const
@@ -78,6 +148,8 @@ type TicketsTableProps = {
   onSortingChange: OnChangeFn<SortingState>
   pagination: PaginationState
   onPaginationChange: OnChangeFn<PaginationState>
+  selectedId?: string
+  showStatus: boolean
 }
 
 // Shows skeleton rows while isPending, and a row per ticket once loaded. Sorting and
@@ -91,10 +163,15 @@ function TicketsTable({
   onSortingChange,
   pagination,
   onPaginationChange,
+  selectedId,
+  showStatus,
 }: TicketsTableProps) {
+  const navigate = useNavigate()
+  const { search } = useLocation()
+  const fullColumns = showStatus ? allColumns : columnsWithoutStatus
   const table = useTable({
     features,
-    columns,
+    columns: selectedId ? compactColumns : fullColumns,
     data: tickets ?? noTickets,
     getRowId: (ticket) => String(ticket.id),
     manualSorting: true,
@@ -109,74 +186,90 @@ function TicketsTable({
     onSortingChange,
     onPaginationChange,
   })
+  const headers = table.getHeaderGroups().flatMap((headerGroup) => headerGroup.headers)
+  const columnClass = (columnId: string) =>
+    selectedId && narrowHiddenColumnIds.includes(columnId) ? narrowHiddenColumn : undefined
 
   return (
-    <div>
-      <Table aria-busy={isPending || isUpdating}>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => {
-                const sorted = header.column.getIsSorted()
-                const SortIcon = sorted ? sortIcons[sorted] : ArrowUpDown
-                return (
-                  <TableHead key={header.id} aria-sort={sorted ? ariaSort[sorted] : 'none'}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="-ml-2.5"
-                      onClick={header.column.getToggleSortingHandler()}
+    <>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <Table aria-busy={isPending || isUpdating}>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => {
+                  if (!header.column.getCanSort()) {
+                    return (
+                      <TableHead key={header.id} className={columnClass(header.column.id)}>
+                        <table.FlexRender header={header} />
+                      </TableHead>
+                    )
+                  }
+                  const sorted = header.column.getIsSorted()
+                  const SortIcon = sorted ? sortIcons[sorted] : ArrowUpDown
+                  return (
+                    <TableHead
+                      key={header.id}
+                      aria-sort={sorted ? ariaSort[sorted] : 'none'}
+                      className={columnClass(header.column.id)}
                     >
-                      <table.FlexRender header={header} />
-                      <SortIcon
-                        data-icon="inline-end"
-                        className={sorted ? undefined : 'text-muted-foreground'}
-                      />
-                    </Button>
-                  </TableHead>
-                )
-              })}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {isPending &&
-            ['first', 'second', 'third'].map((row) => (
-              <TableRow key={row}>
-                <TableCell>
-                  <Skeleton className="h-4 w-56" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-8 w-40" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-5 w-14 rounded-full" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-4 w-28" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-4 w-32" />
-                </TableCell>
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        className="-ml-2 font-medium"
+                        onClick={header.column.getToggleSortingHandler()}
+                      >
+                        <table.FlexRender header={header} />
+                        <SortIcon data-icon="inline-end" className={sorted ? undefined : 'opacity-50'} />
+                      </Button>
+                    </TableHead>
+                  )
+                })}
               </TableRow>
             ))}
-          {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id}>
-              {row.getAllCells().map((cell) => (
-                <TableCell key={cell.id}>
-                  <table.FlexRender cell={cell} />
-                </TableCell>
+          </TableHeader>
+          <TableBody>
+            {isPending &&
+              ['first', 'second', 'third'].map((row) => (
+                <TableRow key={row}>
+                  {headers.map((header) => (
+                    <TableCell key={header.id} className={columnClass(header.column.id)}>
+                      <Skeleton className="h-4 w-full max-w-32 min-w-10" />
+                    </TableCell>
+                  ))}
+                </TableRow>
               ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+            {table.getRowModel().rows.map((row) => (
+              <TableRow
+                key={row.id}
+                data-state={row.id === selectedId ? 'selected' : undefined}
+                aria-current={row.id === selectedId ? 'true' : undefined}
+                className="cursor-pointer"
+                // The subject is the real link, for the keyboard. This makes the whole row a target.
+                onClick={(event) => {
+                  if (event.target instanceof Element && event.target.closest('a')) return
+                  navigate({ pathname: `/tickets/${row.id}`, search })
+                }}
+              >
+                {row.getAllCells().map((cell) => (
+                  <TableCell key={cell.id} className={columnClass(cell.column.id)}>
+                    <table.FlexRender cell={cell} />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
       {total !== undefined && (
-        <nav aria-label="Tickets pages" className="mt-4 flex flex-wrap items-center gap-2">
-          <p className="text-sm text-muted-foreground">
+        <nav
+          aria-label="Tickets pages"
+          className="flex shrink-0 flex-wrap items-center gap-2 border-t px-4 py-1.5"
+        >
+          <p className="text-muted-foreground">
             {total} {total === 1 ? 'ticket' : 'tickets'}
           </p>
-          <p className="ml-auto text-sm text-muted-foreground">
+          <p className="ml-auto text-muted-foreground">
             Page {pagination.pageIndex + 1} of {table.getPageCount()}
           </p>
           <Button
@@ -197,7 +290,7 @@ function TicketsTable({
           </Button>
         </nav>
       )}
-    </div>
+    </>
   )
 }
 

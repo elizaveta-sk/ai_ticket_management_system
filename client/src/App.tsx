@@ -21,8 +21,9 @@ function App() {
       <Route element={<ProtectedLayout />}>
         <Route index element={<HomePage />} />
         <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="tickets" element={<TicketsPage />} />
-        <Route path="tickets/:id" element={<TicketDetailPage />} />
+        <Route path="tickets" element={<TicketsPage />}>
+          <Route path=":id" element={<TicketDetailPage />} />
+        </Route>
         <Route element={<AdminRoute />}>
           <Route path="users" element={<UsersPage />} />
         </Route>

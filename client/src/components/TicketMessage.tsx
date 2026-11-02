@@ -17,7 +17,7 @@ function TicketMessage({ ticketId, body }: { ticketId: number; body: string }) {
 
   return (
     <>
-      <Card>
+      <Card size="sm">
         <CardContent>
           {body ? (
             // Emails are plain text, so keep their line breaks.
@@ -27,7 +27,7 @@ function TicketMessage({ ticketId, body }: { ticketId: number; body: string }) {
           )}
         </CardContent>
       </Card>
-      <div className="mt-3 flex justify-end">
+      <div className="mt-2 flex justify-end">
         <Button
           type="button"
           variant="outline"
@@ -53,11 +53,11 @@ function TicketMessage({ ticketId, body }: { ticketId: number; body: string }) {
         </Alert>
       )}
       {summarize.isSuccess && (
-        <Card className="mt-4" role="region" aria-labelledby="summary-heading">
+        <Card size="sm" className="mt-4" role="region" aria-labelledby="summary-heading">
           <CardContent>
-            <h2 id="summary-heading" className="mb-2 text-sm font-semibold">
+            <h3 id="summary-heading" className="mb-2 text-sm font-semibold">
               Summary
-            </h2>
+            </h3>
             <p className="wrap-anywhere whitespace-pre-wrap">
               {sanitizeText(summarize.data.data.summary)}
             </p>

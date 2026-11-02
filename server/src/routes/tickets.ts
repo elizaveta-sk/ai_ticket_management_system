@@ -7,6 +7,9 @@ import {
   ticketQuerySchema,
   type TicketStats,
   type TicketStatus,
+  type TicketView,
+  type TicketViewCounts,
+  ticketViews,
   updateTicketSchema,
   visibleTicketStatus,
   visibleTicketStatuses,
@@ -47,6 +50,22 @@ const ticketDetailSelect = {
   replies: { select: replySelect, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
 } satisfies Prisma.TicketSelect
 
+// Leaves out tickets the AI is still working on, but not the ones it has resolved.
+const visibleTickets: Prisma.TicketWhereInput = { status: { in: [...visibleTicketStatuses] } }
+
+function viewFilters(userId: string): Record<TicketView, Prisma.TicketWhereInput> {
+  return {
+    open: { status: 'open' },
+    mine: { status: 'open', assignedToId: userId },
+    unassigned: { status: 'open', assignedToId: null },
+    refunds: { status: 'open', category: 'refund_request' },
+    resolved_by_ai: { status: 'resolved', resolvedByAi: true },
+    resolved_by_agent: { status: 'resolved', resolvedByAi: false },
+    closed: { status: 'closed' },
+    all: {},
+  }
+}
+
 export const ticketsRouter = Router()
 
 // Admins and agents can both view tickets. id breaks ties, so tickets with the
@@ -58,16 +77,24 @@ ticketsRouter.get('/tickets', requireAuth, async (req, res) => {
     return
   }
 
-  const { sortBy, sortOrder, status, category, search, page, pageSize } = parsed.data
+  const { sortBy, sortOrder, view, assignedToId, status, category, search, page, pageSize } =
+    parsed.data
   // contains becomes a LIKE pattern, so % and _ would otherwise act as wildcards.
   const contains = {
     contains: search?.replace(/[\\%_]/g, '\\$&'),
     mode: 'insensitive',
   } as const
   const where: Prisma.TicketWhereInput = {
-    // Leaves out tickets the AI is still working on, but not the ones it has resolved.
-    status: status ?? { in: [...visibleTicketStatuses] },
-    category: category === 'uncategorized' ? null : category,
+    // Separate conditions, because a view and a filter can both set the same field.
+    AND: [
+      visibleTickets,
+      viewFilters(req.user!.id)[view],
+      {
+        status,
+        category: category === 'uncategorized' ? null : category,
+        assignedToId,
+      },
+    ],
     // Only what the table shows, so every result visibly matches the search.
     OR: search
       ? [{ subject: contains }, { senderName: contains }, { senderEmail: contains }]
@@ -85,6 +112,7 @@ ticketsRouter.get('/tickets', requireAuth, async (req, res) => {
         status: true,
         category: true,
         createdAt: true,
+        assignedTo: { select: { id: true, name: true } },
       },
       orderBy: [{ [sortBy]: sortOrder }, { id: sortOrder }],
       skip: (page - 1) * pageSize,
@@ -93,6 +121,22 @@ ticketsRouter.get('/tickets', requireAuth, async (req, res) => {
     prisma.ticket.count({ where }),
   ])
   res.json({ tickets, total })
+})
+
+// The counts beside each view in the sidebar. Before /tickets/:id, which would otherwise take
+// "view-counts" as an id. In one transaction, so the counts all describe the same moment.
+ticketsRouter.get('/tickets/view-counts', requireAuth, async (req, res) => {
+  const filters = viewFilters(req.user!.id)
+  const counts = await prisma.$transaction(
+    ticketViews.map((view) =>
+      prisma.ticket.count({ where: { AND: [visibleTickets, filters[view]] } }),
+    ),
+  )
+  res.json({
+    counts: Object.fromEntries(
+      ticketViews.map((view, index) => [view, counts[index]]),
+    ) as TicketViewCounts,
+  })
 })
 
 // Before /tickets/:id, which would otherwise take "stats" as an id. Tickets the AI is still
