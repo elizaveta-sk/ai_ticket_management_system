@@ -56,6 +56,14 @@ This is a shared demo account, so anyone can see what you enter. The hosting is 
 | Testing | Vitest, React Testing Library, Playwright |
 | Hosting | Netlify (client), Render (server), Neon (database) |
 
+## Development agents
+
+I built this project with Claude Code and set up specialised agents to help with testing and security checks. Their definitions are in `.claude/agents`, and the review workflow is in `.github/workflows`.
+
+- **`e2e-test-writer`:** writes, updates and runs the Playwright end-to-end tests.
+- **`security-reviewer`:** reviews the codebase for vulnerabilities and reports verified findings without changing any code.
+- **Claude Code Review:** a GitHub Actions workflow that runs code reviews with Claude.
+
 ## Deploy your own
 
 The browser only ever talks to Netlify, which passes `/api/*` requests on to the server on Render. This keeps login cookies first-party and means the API needs no CORS setup.
