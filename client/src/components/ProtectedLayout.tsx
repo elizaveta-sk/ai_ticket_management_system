@@ -37,6 +37,9 @@ function ProtectedLayout() {
         <Link className="mr-auto font-semibold hover:underline" to="/">
           AI Ticket Management System
         </Link>
+        <Link className="hover:underline" to="/dashboard">
+          Dashboard
+        </Link>
         <Link className="hover:underline" to="/tickets">
           Tickets
         </Link>

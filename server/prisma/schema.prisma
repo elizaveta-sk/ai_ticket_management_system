@@ -51,6 +51,9 @@ model Ticket {
   category     TicketCategory?
   // Answered by the AI from the knowledge base. These stay off the ticket list.
   resolvedByAi Boolean         @default(false)
+  // When the ticket was first resolved. Cleared if it's reopened, and empty on tickets
+  // resolved before this was added.
+  resolvedAt   DateTime?
   // The agent handling this ticket. Empty until someone is assigned.
   assignedToId String?
   assignedTo   User?           @relation(fields: [assignedToId], references: [id], onDelete: SetNull)

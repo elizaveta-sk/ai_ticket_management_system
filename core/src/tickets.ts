@@ -37,6 +37,15 @@ export interface Ticket {
   createdAt: string
 }
 
+// What the dashboard shows. The percentage and average are null with nothing to work them out from.
+export interface TicketStats {
+  total: number
+  open: number
+  resolvedByAi: number
+  resolvedByAiPercent: number | null
+  averageResolutionSeconds: number | null
+}
+
 export interface TicketAssignee {
   id: string
   name: string

@@ -145,6 +145,7 @@ describe('PATCH /api/tickets/:id', () => {
     expect(vi.mocked(prisma.ticket.update).mock.calls[0][0].data).toEqual({
       status: 'open',
       resolvedByAi: false,
+      resolvedAt: null,
     })
   })
 

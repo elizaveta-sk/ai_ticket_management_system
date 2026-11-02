@@ -69,6 +69,10 @@ A ticket moves `new` -> `processing` -> `resolved` or `open`, through `moveTicke
 - **Starting state:** routes create tickets with `initialTicketStatus()` (`server/src/lib/process-ticket.ts`), which is `open` without `OPENAI_API_KEY`, so tickets reach agents straight away when nothing can process them. Anything else that creates tickets must set a status too, because the column defaults to `new`, and a `new` ticket stays hidden until a sweep picks it up.
 - **Enum migrations:** PostgreSQL can't use a new enum value in the migration that adds it, so setting a default to one takes a second migration.
 
+## Dashboard
+
+`/dashboard` (`client/src/pages/DashboardPage.tsx`) shows `GET /api/tickets/stats`, for any signed-in user. Total counts every ticket that has finished processing, including AI-resolved ones, so it's higher than the ticket list's total. The percentage is AI-resolved tickets out of that total. The average is from `createdAt` to `resolvedAt` across all resolved tickets, by AI or agents, and tickets resolved before `resolvedAt` existed don't count. `resolvedAt` keeps the first resolution, stays set when a ticket is closed, and clears when it's reopened.
+
 ## Outbound email and auto-resolve
 
 `server/src/lib/email.ts` sends plain-text email through SendGrid. It needs `SENDGRID_API_KEY` and `EMAIL_FROM` in `server/.env`, and `EMAIL_FROM` must be on a domain authenticated in SendGrid. Without them nothing is sent, and the rest of the app works as normal. Replies to these emails go to the `EMAIL_FROM` mailbox, not into the app, until inbound email is connected.

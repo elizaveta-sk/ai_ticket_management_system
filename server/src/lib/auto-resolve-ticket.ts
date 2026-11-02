@@ -137,6 +137,7 @@ export async function autoResolveTicket(
     await prisma.$transaction([
       moveTicketQuery(ticket.id, TicketStatus.processing, TicketStatus.resolved, {
         resolvedByAi: true,
+        resolvedAt: new Date(),
       }),
       prisma.ticketReply.create({
         data: { ticketId: ticket.id, senderType: SenderType.ai, body: reply },

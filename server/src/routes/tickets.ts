@@ -2,6 +2,8 @@ import {
   createReplySchema,
   ticketIdSchema,
   ticketQuerySchema,
+  type TicketStats,
+  type TicketStatus,
   updateTicketSchema,
   visibleTicketStatus,
   visibleTicketStatuses,
@@ -89,6 +91,28 @@ ticketsRouter.get('/tickets', requireAuth, async (req, res) => {
   res.json({ tickets, total })
 })
 
+// Before /tickets/:id, which would otherwise take "stats" as an id. Tickets the AI is still
+// working on don't count yet, but tickets it resolved do, though they're not on the list.
+ticketsRouter.get('/tickets/stats', requireAuth, async (_req, res) => {
+  const [total, open, resolvedByAi, [average]] = await prisma.$transaction([
+    prisma.ticket.count({ where: { status: { in: [...visibleTicketStatuses] } } }),
+    prisma.ticket.count({ where: { status: 'open' } }),
+    prisma.ticket.count({ where: { resolvedByAi: true } }),
+    prisma.$queryRaw<{ seconds: number | null }[]>`
+      SELECT AVG(EXTRACT(EPOCH FROM ("resolvedAt" - "createdAt")))::float8 AS seconds
+      FROM "ticket"
+      WHERE "resolvedAt" IS NOT NULL`,
+  ])
+  const stats: TicketStats = {
+    total,
+    open,
+    resolvedByAi,
+    resolvedByAiPercent: total > 0 ? Math.round((resolvedByAi / total) * 1_000) / 10 : null,
+    averageResolutionSeconds: average.seconds,
+  }
+  res.json({ stats })
+})
+
 // An id that could never exist gets the same answer as one that doesn't.
 ticketsRouter.get('/tickets/:id', requireAuth, async (req, res) => {
   const id = ticketIdSchema.safeParse(req.params.id)
@@ -101,6 +125,17 @@ ticketsRouter.get('/tickets/:id', requireAuth, async (req, res) => {
   }
   res.json({ ticket: { ...ticket, status: visibleTicketStatus(ticket.status) } })
 })
+
+async function resolutionChanges(id: number, status: TicketStatus | undefined) {
+  // An agent moving an AI-resolved ticket on has taken it over, so it joins the list again.
+  if (status === 'open') return { resolvedByAi: false, resolvedAt: null }
+  if (status === 'closed') return { resolvedByAi: false }
+  if (status !== 'resolved') return {}
+
+  // The first time counts, so saving a resolved ticket again doesn't change its resolution time.
+  const ticket = await prisma.ticket.findUnique({ where: { id }, select: { resolvedAt: true } })
+  return ticket?.resolvedAt ? {} : { resolvedAt: new Date() }
+}
 
 // Admins and agents can both update a ticket's status and category, and assign it
 // to any active agent. Only the fields sent are changed.
@@ -133,8 +168,7 @@ ticketsRouter.patch('/tickets/:id', requireAuth, async (req, res) => {
       where: { id: id.data },
       data: {
         ...changes,
-        // An agent moving an AI-resolved ticket on has taken it over, so it joins the list again.
-        ...(changes.status && changes.status !== 'resolved' && { resolvedByAi: false }),
+        ...(await resolutionChanges(id.data, changes.status)),
       },
       select: ticketDetailSelect,
     })

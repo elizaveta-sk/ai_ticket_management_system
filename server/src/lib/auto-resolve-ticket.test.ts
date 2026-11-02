@@ -93,7 +93,7 @@ describe('autoResolveTicket', () => {
     })
     expect(prisma.ticket.updateMany).toHaveBeenCalledWith({
       where: { id: 7, status: 'processing' },
-      data: { status: 'resolved', resolvedByAi: true },
+      data: { status: 'resolved', resolvedByAi: true, resolvedAt: expect.any(Date) },
     })
     expect(prisma.ticketReply.create).toHaveBeenCalledWith({
       data: { ticketId: 7, senderType: 'ai', body: expect.stringContaining(answer) },
