@@ -39,16 +39,7 @@ export interface Ticket {
 }
 
 // The ready-made lists of tickets in the sidebar. See viewFilters in the tickets route.
-export const ticketViews = [
-  'open',
-  'mine',
-  'unassigned',
-  'refunds',
-  'resolved_by_ai',
-  'resolved_by_agent',
-  'closed',
-  'all',
-] as const
+export const ticketViews = ['attention', 'refunds', 'resolved', 'closed', 'all'] as const
 
 export type TicketView = (typeof ticketViews)[number]
 export type TicketViewCounts = Record<TicketView, number>

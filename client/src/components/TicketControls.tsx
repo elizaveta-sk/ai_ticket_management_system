@@ -113,7 +113,8 @@ function TicketControls({
       <div className="grid gap-2 xl:grid-cols-[6rem_1fr_1fr]">
         <TicketSelect
           label="Status"
-          items={statusItems}
+          // A ticket is closed only after it's resolved, which the server enforces too.
+          items={statusItems.filter((item) => item.value !== 'closed' || status !== 'open')}
           value={saving.status ?? status}
           disabled={update.isPending}
           onChange={(value) => update.mutate({ status: value })}

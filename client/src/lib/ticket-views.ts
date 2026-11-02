@@ -1,14 +1,11 @@
 import { ticketViews, type TicketView } from 'core/tickets'
 
-export const defaultTicketView: TicketView = 'open'
+export const defaultTicketView: TicketView = 'attention'
 
 export const viewLabels: Record<TicketView, string> = {
-  open: 'Needs a person',
-  mine: 'Assigned to me',
-  unassigned: 'Unassigned',
+  attention: 'Need attention',
   refunds: 'Refund requests',
-  resolved_by_ai: 'Resolved by Jane AI',
-  resolved_by_agent: 'Resolved by agents',
+  resolved: 'Resolved',
   closed: 'Closed',
   all: 'All tickets',
 }
@@ -24,5 +21,5 @@ export function ticketViewHref(view: TicketView) {
 
 // Views of work still to do, where the ticket that has waited longest comes first.
 export function viewSortsOldestFirst(view: TicketView) {
-  return view === 'open' || view === 'mine' || view === 'unassigned' || view === 'refunds'
+  return view === 'attention' || view === 'refunds'
 }

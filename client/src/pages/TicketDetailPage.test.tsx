@@ -527,6 +527,15 @@ describe('TicketDetailPage', () => {
       expect(await optionsOf('Status')).toEqual(['Open', 'Resolved', 'Closed'])
     })
 
+    it('does not offer Closed until the ticket is resolved', async () => {
+      mockApi({ ...ticket, status: 'open' })
+
+      renderPage()
+      await screen.findByRole('heading', { name: ticket.subject })
+
+      expect(await optionsOf('Status')).toEqual(['Open', 'Resolved'])
+    })
+
     it('offers the three categories to a categorized ticket, without Uncategorized', async () => {
       mockApi(ticket)
 

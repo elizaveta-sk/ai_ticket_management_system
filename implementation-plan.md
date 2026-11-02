@@ -25,8 +25,6 @@
 - [x] Add role-based access control (admin vs agent)
 
 ## Phase 4: Ticket CRUD
-
-- [ ] Implement create ticket API endpoint
 - [x] Implement list tickets API endpoint (with filtering by status and category, sorting)
 - [x] Implement get ticket API endpoint
 - [x] Implement update ticket API endpoint (change status, assign agent)
@@ -40,31 +38,28 @@
 - [x] Implement auto-classification (categorize incoming tickets in the background, using OpenAI `gpt-5-nano` through the AI SDK)
 - [x] Retry missed classifications with a recurring sweep of recent uncategorized tickets
 - [x] Implement AI summary endpoint (generate ticket summary, using OpenAI `gpt-5-nano` through the AI SDK)
-- [ ] Implement AI suggested reply endpoint
+- [X] ~~Implement AI suggested reply endpoint~~ Replaced by the Polish button
 - [x] Add a Polish button that improves an agent's draft reply (OpenAI `gpt-5-nano` through the AI SDK)
 - [x] Build knowledge base structure and seed with initial content
 - [x] Auto-resolve tickets on arrival from the knowledge base (OpenAI `gpt-5-nano` through the AI SDK)
-- [ ] Integrate AI features into ticket detail page UI
+- [X] Integrate AI features into ticket detail page UI
 
 ## Phase 6: Email Integration
 
-- [ ] Set up email provider (SendGrid account: domain authentication and API key)
+- [X] Set up email provider (SendGrid account: domain authentication and API key)
 - [x] Implement inbound email webhook to create tickets
-- [ ] Map SendGrid Inbound Parse to the inbound email webhook
+- [X] Map SendGrid Inbound Parse to the inbound email webhook
 - [x] Implement outbound email sending when an agent replies
-- [ ] Handle email threading (replies linked to existing tickets)
+- [X] Handle email threading (replies linked to existing tickets)
 
 ## Phase 7: Dashboard
 
 - [x] Create dashboard page with ticket stats (total, open, resolved by AI and average resolution time)
-- [ ] Add tickets by category breakdown
-- [ ] Add recent tickets list
-- [ ] Add quick filters to navigate to filtered ticket list
 
 ## Phase 8: Polish & Deployment
 
-- [ ] Add input validation and error handling across all endpoints
-- [ ] Add loading states and error states on the frontend
-- [ ] Write Dockerfile for server and client
-- [ ] Set up Docker Compose for local development
-- [ ] Write deployment configuration
+- [x] Add input validation and error handling across all endpoints
+- [x] Add loading states and error states on the frontend
+- [x] ~~Write Dockerfile for server and client~~ Not needed: Netlify and Render build the code directly
+- [x] Set up Docker Compose for local development
+- [x] Write deployment configuration

@@ -53,14 +53,21 @@ const ticketDetailSelect = {
 // Leaves out tickets the AI is still working on, but not the ones it has resolved.
 const visibleTickets: Prisma.TicketWhereInput = { status: { in: [...visibleTicketStatuses] } }
 
-function viewFilters(userId: string): Record<TicketView, Prisma.TicketWhereInput> {
+// Open tickets appear in one work view only, so refund requests are kept out of Need attention.
+// A plain "not" would also drop tickets with no category yet, because of how SQL treats NULL.
+const notRefundRequest: Prisma.TicketWhereInput = {
+  OR: [{ category: null }, { category: { not: 'refund_request' } }],
+}
+
+function viewFilters(user: { id: string; role?: string | null }): Record<TicketView, Prisma.TicketWhereInput> {
+  // Tickets can't be assigned to an admin, who oversees all of them instead.
+  const responsibleFor: Prisma.TicketWhereInput =
+    user.role === Role.admin ? {} : { OR: [{ assignedToId: user.id }, { assignedToId: null }] }
+
   return {
-    open: { status: 'open' },
-    mine: { status: 'open', assignedToId: userId },
-    unassigned: { status: 'open', assignedToId: null },
+    attention: { status: 'open', AND: [notRefundRequest, responsibleFor] },
     refunds: { status: 'open', category: 'refund_request' },
-    resolved_by_ai: { status: 'resolved', resolvedByAi: true },
-    resolved_by_agent: { status: 'resolved', resolvedByAi: false },
+    resolved: { status: 'resolved' },
     closed: { status: 'closed' },
     all: {},
   }
@@ -88,7 +95,7 @@ ticketsRouter.get('/tickets', requireAuth, async (req, res) => {
     // Separate conditions, because a view and a filter can both set the same field.
     AND: [
       visibleTickets,
-      viewFilters(req.user!.id)[view],
+      viewFilters(req.user!)[view],
       {
         status,
         category: category === 'uncategorized' ? null : category,
@@ -126,7 +133,7 @@ ticketsRouter.get('/tickets', requireAuth, async (req, res) => {
 // The counts beside each view in the sidebar. Before /tickets/:id, which would otherwise take
 // "view-counts" as an id. In one transaction, so the counts all describe the same moment.
 ticketsRouter.get('/tickets/view-counts', requireAuth, async (req, res) => {
-  const filters = viewFilters(req.user!.id)
+  const filters = viewFilters(req.user!)
   const counts = await prisma.$transaction(
     ticketViews.map((view) =>
       prisma.ticket.count({ where: { AND: [visibleTickets, filters[view]] } }),
@@ -224,6 +231,18 @@ ticketsRouter.patch('/tickets/:id', requireAuth, async (req, res) => {
     })
     if (!agent) {
       res.status(400).json({ error: 'That agent is no longer available' })
+      return
+    }
+  }
+
+  // A ticket is closed only after it's resolved. A missing ticket gets its 404 from the update.
+  if (changes.status === 'closed') {
+    const current = await prisma.ticket.findUnique({
+      where: { id: id.data },
+      select: { status: true },
+    })
+    if (current && current.status !== 'resolved' && current.status !== 'closed') {
+      res.status(400).json({ error: 'Resolve the ticket before closing it' })
       return
     }
   }

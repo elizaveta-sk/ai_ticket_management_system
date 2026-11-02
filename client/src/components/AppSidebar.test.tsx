@@ -1,19 +1,10 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import axios from 'axios'
 import { describe, expect, it, vi } from 'vitest'
 import { renderWithQuery } from '../test/render-with-query.tsx'
 import AppSidebar from './AppSidebar.tsx'
 
-const counts = {
-  open: 26,
-  mine: 6,
-  unassigned: 11,
-  refunds: 3,
-  resolved_by_ai: 38,
-  resolved_by_agent: 24,
-  closed: 112,
-  all: 200,
-}
+const counts = { attention: 26, refunds: 3, resolved: 62, closed: 112, all: 203 }
 
 function renderSidebar({ isAdmin = false, route = '/tickets' } = {}) {
   return renderWithQuery(<AppSidebar userName="Ada Agent" isAdmin={isAdmin} onSignOut={() => {}} />, {
@@ -27,7 +18,7 @@ describe('AppSidebar', () => {
 
     renderSidebar()
 
-    const link = await screen.findByRole('link', { name: 'Needs a person 26' })
+    const link = await screen.findByRole('link', { name: 'Need attention 26' })
     expect(link).toHaveAttribute('href', '/tickets')
     expect(screen.getByRole('link', { name: 'Closed 112' })).toHaveAttribute(
       'href',
@@ -40,9 +31,9 @@ describe('AppSidebar', () => {
 
     renderSidebar()
 
-    expect(screen.getByRole('link', { name: 'Needs a person' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Need attention' })).toBeInTheDocument()
     await vi.waitFor(() => expect(get).toHaveBeenCalled())
-    expect(screen.getByRole('link', { name: 'Needs a person' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Need attention' })).toBeInTheDocument()
   })
 
   it('marks the view in the URL as current, including while a ticket is open', () => {
@@ -54,7 +45,7 @@ describe('AppSidebar', () => {
       'aria-current',
       'page',
     )
-    expect(screen.getByRole('link', { name: 'Needs a person' })).not.toHaveAttribute('aria-current')
+    expect(screen.getByRole('link', { name: 'Need attention' })).not.toHaveAttribute('aria-current')
   })
 
   it('marks no view as current on other pages', () => {
@@ -62,25 +53,33 @@ describe('AppSidebar', () => {
 
     renderSidebar({ route: '/dashboard' })
 
-    expect(screen.getByRole('link', { name: 'Needs a person' })).not.toHaveAttribute('aria-current')
+    expect(screen.getByRole('link', { name: 'Need attention' })).not.toHaveAttribute('aria-current')
     expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page')
   })
 
-  it('gives agents Assigned to me and no Users link', () => {
+  it('lists each view once, with work to do first', () => {
     vi.spyOn(axios, 'get').mockReturnValue(new Promise(() => {}))
 
     renderSidebar()
 
-    expect(screen.getByRole('link', { name: 'Assigned to me' })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Users' })).not.toBeInTheDocument()
+    const views = within(screen.getByRole('navigation', { name: 'Tickets' })).getAllByRole('link')
+    expect(views.map((link) => link.textContent?.trim())).toEqual([
+      'Need attention',
+      'Refund requests',
+      'Resolved',
+      'Closed',
+      'All tickets',
+    ])
   })
 
-  it('gives admins a Users link and no Assigned to me', () => {
+  it('gives only admins a Users link', () => {
     vi.spyOn(axios, 'get').mockReturnValue(new Promise(() => {}))
 
-    renderSidebar({ isAdmin: true })
+    const { unmount } = renderSidebar()
+    expect(screen.queryByRole('link', { name: 'Users' })).not.toBeInTheDocument()
+    unmount()
 
+    renderSidebar({ isAdmin: true })
     expect(screen.getByRole('link', { name: 'Users' })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Assigned to me' })).not.toBeInTheDocument()
   })
 })

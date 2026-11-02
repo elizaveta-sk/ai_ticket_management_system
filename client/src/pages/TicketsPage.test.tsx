@@ -626,15 +626,15 @@ describe('TicketsPage', () => {
     const ticketsApi = () =>
       vi.spyOn(axios, 'get').mockResolvedValue({ data: { tickets, total: tickets.length } })
 
-    it('opens Needs a person by default, longest waiting first', async () => {
+    it('opens Need attention by default, longest waiting first', async () => {
       const get = ticketsApi()
 
       renderPage('/tickets')
 
-      expect(screen.getByRole('heading', { name: 'Needs a person' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Need attention' })).toBeInTheDocument()
       await screen.findByRole('cell', { name: tickets[0].subject })
       expect(get.mock.lastCall?.[1]?.params).toMatchObject({
-        view: 'open',
+        view: 'attention',
         sortBy: 'createdAt',
         sortOrder: 'asc',
       })
@@ -645,7 +645,7 @@ describe('TicketsPage', () => {
 
       renderPage('/tickets?view=nope')
 
-      expect(screen.getByRole('heading', { name: 'Needs a person' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Need attention' })).toBeInTheDocument()
     })
 
     it('shows finished work newest first', async () => {
@@ -673,8 +673,18 @@ describe('TicketsPage', () => {
       expect(screen.queryByRole('combobox', { name: 'Filter by category' })).not.toBeInTheDocument()
       unmount()
 
-      renderPage('/tickets?view=unassigned')
+      renderPage('/tickets?view=attention')
       expect(screen.queryByRole('combobox', { name: 'Filter by assignee' })).not.toBeInTheDocument()
+    })
+
+    it('does not offer Refund Request as a category in Need attention', async () => {
+      vi.spyOn(axios, 'get').mockReturnValue(new Promise(() => {}))
+
+      renderPage('/tickets')
+
+      fireEvent.click(screen.getByRole('combobox', { name: 'Filter by category' }))
+      await screen.findByRole('option', { name: 'General Question' })
+      expect(screen.queryByRole('option', { name: 'Refund Request' })).not.toBeInTheDocument()
     })
 
     it('filters by assignee, loading the agents only when asked', async () => {

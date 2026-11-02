@@ -40,8 +40,6 @@ function AppSidebar({
 
   const onTickets = pathname === '/tickets' || pathname.startsWith('/tickets/')
   const currentView = onTickets ? parseTicketView(new URLSearchParams(search).get('view')) : null
-  // Tickets can only be assigned to agents, so this would always be empty for an admin.
-  const views = ticketViews.filter((view) => view !== 'mine' || !isAdmin)
 
   return (
     <aside className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-sidebar-border bg-sidebar p-2 text-sidebar-foreground md:w-56 md:flex-col md:flex-nowrap md:items-stretch md:gap-4 md:border-r md:border-b-0">
@@ -67,12 +65,13 @@ function AppSidebar({
             Tickets
           </h2>
           <div className="flex gap-px overflow-x-auto md:flex-col">
-            {views.map((view) => (
+            {ticketViews.map((view) => (
               <Link
                 key={view}
                 to={ticketViewHref(view)}
                 aria-current={view === currentView ? 'page' : undefined}
-                className={linkClass(view === currentView)}
+                // Sets finished work apart from the views of work to do.
+                className={cn(linkClass(view === currentView), view === 'resolved' && 'md:mt-3')}
               >
                 {viewLabels[view]}{' '}
                 {counts && (

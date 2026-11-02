@@ -64,7 +64,7 @@ SendGrid sends outbound email, and its Inbound Parse feeds replies to existing t
 
 ## Ticket states
 
-A ticket moves `new` -> `processing` -> `resolved` or `open`, through `moveTicket` (`server/src/lib/ticket-state.ts`), which holds the allowed moves and only changes a ticket still in the expected state. After that, agents move tickets freely between `open`, `resolved` and `closed` through `PATCH /api/tickets/:id`.
+A ticket moves `new` -> `processing` -> `resolved` or `open`, through `moveTicket` (`server/src/lib/ticket-state.ts`), which holds the allowed moves and only changes a ticket still in the expected state. After that, agents move tickets through `PATCH /api/tickets/:id`: an open ticket can only become resolved, which `PATCH` enforces with a 400 and `TicketControls` by not offering Closed, while a resolved or closed ticket can move to any status, including back to `open`.
 
 - **Internal states:** `new` and `processing` never leave the server. API responses go through `visibleTicketStatus` (`core/src/tickets.ts`), which shows them as `open`, and `GET /api/tickets` leaves those tickets out. They can be seen in the database, such as through Prisma Studio.
 - **Starting state:** routes create tickets with `initialTicketStatus()` (`server/src/lib/process-ticket.ts`), which is `open` without `OPENAI_API_KEY`, so tickets reach agents straight away when nothing can process them. Anything else that creates tickets must set a status too, because the column defaults to `new`, and a `new` ticket stays hidden until a sweep picks it up.
@@ -76,7 +76,7 @@ A ticket moves `new` -> `processing` -> `resolved` or `open`, through `moveTicke
 
 `AppSidebar` lists the ticket views with their counts (`GET /api/tickets/view-counts`), for every page under `ProtectedLayout`. `/tickets` shows a view chosen by `?view=` (`client/src/lib/ticket-views.ts`), and `/tickets/:id` is a nested route that opens that ticket in a panel beside the list.
 
-- **Views:** the names are in `ticketViews` (`core/src/tickets.ts`), and each view's filter is in `viewFilters` (`server/src/routes/tickets.ts`), which both the list and the counts use. `GET /api/tickets` defaults to `all`, while the page defaults to `open` ("Needs a person"). Assigned to me is hidden from admins, because tickets can only be assigned to agents.
+- **Views:** the names are in `ticketViews` (`core/src/tickets.ts`), and each view's filter is in `viewFilters` (`server/src/routes/tickets.ts`), which both the list and the counts use. `GET /api/tickets` defaults to `all`, while the page defaults to `attention`. Each open ticket is in one work view: Need attention has the signed-in agent's tickets and unassigned ones, leaving out refund requests, while Refund requests has every open one, whoever is assigned. Admins can't be assigned tickets, so Need attention shows them every open ticket except refund requests. All tickets is the only view that overlaps the others, because it's where to search everything.
 - **Polling:** the list and the counts refetch every 30 seconds. Both query keys start with `tickets`, so invalidating that refreshes both.
 - **Narrow screens:** the open ticket sits to the right of the list from the `md` breakpoint up, and the list drops to subject and age below `xl`. On a phone, the ticket replaces the list.
 - **Reply drafts:** `ReplyForm` keeps each ticket's draft in the query cache under `reply-draft` (no expiry, set in `main.tsx`), so moving between tickets doesn't lose it. Sign-out clears it along with the rest of the cache, and a reload loses it.

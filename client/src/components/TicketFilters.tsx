@@ -133,12 +133,17 @@ function TicketFilters({
       {view !== 'refunds' && (
         <FilterSelect
           label="Filter by category"
-          items={categoryItems}
+          // Refund requests have their own view, so Need attention never has any.
+          items={
+            view === 'attention'
+              ? categoryItems.filter((item) => item.value !== 'refund_request')
+              : categoryItems
+          }
           value={filters.category}
           onChange={(category) => onChange({ ...filters, category })}
         />
       )}
-      {view !== 'mine' && view !== 'unassigned' && (
+      {view !== 'attention' && (
         <AssigneeFilter
           value={filters.assignee}
           onChange={(assignee) => onChange({ ...filters, assignee })}
