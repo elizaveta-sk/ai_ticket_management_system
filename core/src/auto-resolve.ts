@@ -36,7 +36,7 @@ export function formatAutoReply(answer: string, senderName: string) {
   return [
     greetingFor(senderName),
     message,
-    "This is an automated answer. If it doesn't solve your problem, reply to this email and a member of our team will help you.",
+    'If you have further questions, reply to this email.',
     `${signOff},\n${signer}\nSupport team`,
   ].join('\n\n')
 }

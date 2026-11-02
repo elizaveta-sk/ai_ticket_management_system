@@ -83,7 +83,7 @@ A ticket moves `new` -> `processing` -> `resolved` or `open`, through `moveTicke
 - **Never answered automatically:** refund requests, tickets an agent has assigned, replied to or changed, and tickets from an address that has had 3 automatic answers in 24 hours. The last rule limits auto-responder loops and misuse of the contact form, which accepts anyone's address.
 - **Untrusted input:** `isSafeAutoAnswer` (`core/src/auto-resolve.ts`) rejects any answer with a link or domain, and the subject is fixed, so nothing a sender wrote can be forwarded to someone else's inbox. `formatAutoReply` greets by first name only if it looks like a single name, and otherwise says "Hi there". Don't add the full name or subject to these emails.
 - **Logs:** each attempt logs its outcome with the ticket id and no email content, such as `Ticket 7 left for an agent: ...` or `Ticket 7 resolved automatically`.
-- **Format:** `formatAutoReply` adds the greeting, the note that the answer is automated, and the sign-off ("Best, Jane, Support team"). Agents' replies aren't changed, and the Polish button signs them with the agent's own name.
+- **Format:** `formatAutoReply` adds the greeting, a line inviting further questions by reply, and the sign-off ("Best, Jane, Support team"). The visible text doesn't say the answer is automated; the `Auto-Submitted` header stays, to stop auto-responder loops. Agents' replies aren't changed, and the Polish button signs them with the agent's own name.
 - **Order:** the email is sent before the ticket is saved as resolved. After a failed save the sweep opens the ticket, whereas the other order could hide a ticket whose student never got an answer.
 
 ## Testing

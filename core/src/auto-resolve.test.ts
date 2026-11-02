@@ -21,9 +21,9 @@ describe('isSafeAutoAnswer', () => {
 })
 
 describe('formatAutoReply', () => {
-  it('greets by first name, says it is automated and signs off as Jane', () => {
+  it('greets by first name, invites further questions and signs off as Jane', () => {
     expect(formatAutoReply('  Videos are streamed online.  ', 'Grace Student')).toBe(
-      "Hi Grace,\n\nVideos are streamed online.\n\nThis is an automated answer. If it doesn't solve your problem, reply to this email and a member of our team will help you.\n\nBest,\nJane\nSupport team",
+      'Hi Grace,\n\nVideos are streamed online.\n\nIf you have further questions, reply to this email.\n\nBest,\nJane\nSupport team',
     )
   })
 
@@ -47,6 +47,6 @@ describe('formatAutoReply', () => {
 
     expect(reply.match(/Hi Grace/g)).toHaveLength(1)
     expect(reply.match(/Best,/g)).toHaveLength(1)
-    expect(reply).toContain('Hi Grace,\n\nVideos are streamed.\n\nThis is')
+    expect(reply).toContain('Hi Grace,\n\nVideos are streamed.\n\nIf you have')
   })
 })
